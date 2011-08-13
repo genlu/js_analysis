@@ -619,6 +619,8 @@ ArrayList *findDominatorHelper(BasicBlock *block){
 	//printf("findDominatorHelper: id %d\n", block->id);
 
 	assert(!BBL_HAS_FLAG(block, BBL_IS_ENTRY_NODE));
+	assert(!BBL_HAS_FLAG(block, BBL_IS_FUNC_ENTRY));
+
 	int i;
 	ArrayList *dominators, *dominatorsTemp;
 	BasicBlock *predNode;
@@ -807,7 +809,7 @@ int findBackEdges(ArrayList *blockList){
 			if(al_contains(block->dominators, next)){
 				EDGE_SET_FLAG(edge, EDGE_IS_BACK_EDGE);
 			}
-			//if edge is both RETREAT and BACK, or neither
+			//if edge is !(both RETREAT and BACK, or neither)
 			if(!((EDGE_HAS_FLAG(edge, EDGE_IS_RETREAT) && EDGE_HAS_FLAG(edge, EDGE_IS_BACK_EDGE)) ||
 					!((EDGE_HAS_FLAG(edge, EDGE_IS_RETREAT) || EDGE_HAS_FLAG(edge, EDGE_IS_BACK_EDGE)))))
 				reducible++;
