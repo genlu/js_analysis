@@ -170,6 +170,14 @@ int main (int argc, char *argv[]) {
      * (tree edges are marked)
      */
     buildDFSTree(funcBlockList);
+
+    //process all the AND/OR expressions
+    //concatenate involved basicblocks in the order of the address
+    processANDandORExps(iList, funcBlockList);
+
+    findDominators(funcBlockList);
+    buildDFSTree(funcBlockList);
+
     /*
      * mark all retreat edges and backedges in given CFG and DFS-Tree
      * and determin if this CFG is reducible.

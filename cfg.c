@@ -87,19 +87,24 @@ void printEdges(BasicBlock *block){
 	printf("inbound Edges of block #%d:\n", block->id);
 	for(i=0;i<al_size(block->preds);i++){
 		edge = al_get(block->preds, i);
-		printf("%c%c%c %d -> %d  : %d\n",
+		printf("%c%c%c%c%c %d -> %d  : %d\n",
 				EDGE_HAS_FLAG(edge, EDGE_IN_DFST)?'*':'-',
 				EDGE_HAS_FLAG(edge, EDGE_IS_RETREAT)?'R':'-',
 				EDGE_HAS_FLAG(edge, EDGE_IS_BACK_EDGE)?'B':'-',
+				EDGE_HAS_FLAG(edge, EDGE_IS_BRANCHED_PATH)?'J':'-',
+				EDGE_HAS_FLAG(edge, EDGE_IS_ADJACENT_PATH)?'A':'-',
 				edge->tail->id, edge->head->id, edge->count);
 	}
 	printf("outbound Edges of block #%d:\n", block->id);
 	for(i=0;i<al_size(block->succs);i++){
 		edge = al_get(block->succs, i);
-		printf("%c%c%c %d -> %d  : %d\n",
+		printf("%c%c%c%c%c %d -> %d  : %d\n",
 				EDGE_HAS_FLAG(edge, EDGE_IN_DFST)?'*':'-',
 				EDGE_HAS_FLAG(edge, EDGE_IS_RETREAT)?'R':'-',
 				EDGE_HAS_FLAG(edge, EDGE_IS_BACK_EDGE)?'B':'-',
+				EDGE_HAS_FLAG(edge, EDGE_IS_BRANCHED_PATH)?'J':'-',
+				EDGE_HAS_FLAG(edge, EDGE_IS_ADJACENT_PATH)?'A':'-',
+
 				edge->tail->id, edge->head->id, edge->count);
 	}
 }
@@ -142,6 +147,8 @@ void printBasicBlock(BasicBlock *block) {
 		  printf("ERROR: unknown block type");
   }
   printf("\n");
+  printf("Last Instruction:\t%s\n", block->lastInstr->opName);
+
 
   /********************* PREDECESSORS ********************/
   printf("PREDS:  ");
@@ -293,7 +300,7 @@ BasicBlock *createBasicBlock(void){
 	new->addr = new->end_addr = new->flags = new->count = 0;
 
 	new->calltarget = NULL;
-	new->instrs = al_newGeneric(AL_LIST_SORTED, insCompareByOrder, refPrint, dealloc);
+	new->instrs = al_newGeneric(AL_LIST_SORTED, insCompareByAddr, refPrint, dealloc);
 /*	new->preds = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
 	new->succs = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);*/
 	new->preds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
@@ -317,7 +324,7 @@ void destroyBasicBlock(void *block) {
 	if(!block)
 		return;
 
-	bbl = (void *)block;
+	bbl = (BasicBlock *)block;
 
 	if(bbl->instrs)
 		al_free(bbl->instrs);
@@ -326,6 +333,44 @@ void destroyBasicBlock(void *block) {
 		al_free(bbl->preds);
 
 	if(bbl->succs)
+		al_freeWithElements(bbl->succs);
+
+	bbl->instrs = bbl->preds = bbl->succs = NULL;
+
+	if(bbl->dominators)
+		al_free(bbl->dominators);
+
+/*	if(bbl->dominate)
+		al_freeWithElements(bbl->dominate);*/
+
+	bbl->id = -1;
+
+	free(bbl);
+	bbl=NULL;
+
+	return;
+}
+
+
+/*
+ * if flag==1, then don't free pred, if flag==2, then don't free succs,
+ * else free both
+ */
+void destroyBasicBlockForConCat(BasicBlock *block, int flag) {
+	BasicBlock *bbl;
+
+	if(!block)
+		return;
+
+	bbl = block;
+
+	if(bbl->instrs)
+		al_free(bbl->instrs);
+
+	if(bbl->preds && flag!=1)
+		al_free(bbl->preds);
+
+	if(bbl->succs && flag!=2)
 		al_freeWithElements(bbl->succs);
 
 	bbl->instrs = bbl->preds = bbl->succs = NULL;
@@ -454,6 +499,7 @@ ArrayList *buildBasicBlockList(InstrList *iList){
 				block->count = 1;
 				block->addr = ((Instruction *)(al_get(block->instrs, 0)))->addr;
 				block->end_addr = instr->addr;
+				block->lastInstr = instr;
 				if(INSTR_HAS_FLAG(instr,INSTR_IS_1_BRANCH))
 					block->type = BT_1_BRANCH;
 				else if(INSTR_HAS_FLAG(instr,INSTR_IS_2_BRANCH))
@@ -541,6 +587,62 @@ ArrayList *buildBasicBlockList(InstrList *iList){
 			}
 		}
 	}
+
+	/*
+	 * try to discover all complement edges
+	 */
+	for(i=0;i<al_size(blockList);i++){
+		block = (BasicBlock *)al_get(blockList, i);
+		if(block->type==BT_2_BRANCH){
+			//at least one branch target have to be reached.
+			//If only one is reached, we need to add a complement edge to the other
+			if(al_size(block->succs)!=2){
+				assert(al_size(block->succs)==1);
+				BasicBlock *branchTakenBlock;
+				BasicBlock *branchMissingBlock;
+				BlockEdge *branchTakenEdge;
+				BlockEdge *branchMissingEdge;
+				ADDRESS branchMissingAddress;
+				fprintf(stderr, "block%d missing an edge\n", block->id);
+				//get the branch instr (last instr in block)
+				int temp_i = al_size(block->instrs)-1;
+				instr = al_get(block->instrs, temp_i);
+				assert(INSTR_HAS_FLAG(instr,INSTR_IS_2_BRANCH));
+				//calculate missing branch target address
+				branchTakenEdge = al_get(block->succs,0);
+				branchTakenBlock = branchTakenEdge->head;
+				if(EDGE_HAS_FLAG(branchTakenEdge, EDGE_IS_ADJACENT_PATH)){
+					branchMissingAddress = instr->addr + instr->jmpOffset;
+				}else{
+					branchMissingAddress = instr->addr + instr->length;
+				}
+				//find the missing target block by address
+				branchMissingBlock = findBasicBlockFromListByAddr(blockList, branchMissingAddress);
+				if(branchMissingBlock){
+					//add the complement-edge to block->succ
+					branchMissingEdge = createBlockEdge();
+					branchMissingEdge->count = 0;
+					branchMissingEdge->tail = block;
+					branchMissingEdge->head = branchMissingBlock;
+					EDGE_SET_FLAG(branchMissingEdge, EDGE_IS_COMPLEMENT);
+					if(EDGE_HAS_FLAG(branchTakenEdge, EDGE_IS_ADJACENT_PATH)){
+						EDGE_SET_FLAG(branchMissingEdge, EDGE_IS_BRANCHED_PATH);
+					}else{
+						EDGE_SET_FLAG(branchMissingEdge, EDGE_IS_ADJACENT_PATH);
+					}
+					al_add(block->succs, branchMissingEdge);
+					al_add(branchMissingBlock->preds, branchMissingEdge);
+				}else
+					continue;
+			}
+			else{
+				continue;
+			}
+		}else if(block->type==BT_N_BRANCH){
+			//TODO
+		}
+	}
+
 	return (blockList);
 }
 
@@ -732,6 +834,24 @@ void findDominators(ArrayList *blockList){
 
 	printDomList(blockList);
 }
+
+/*
+ * return true if block1 dominate block2 in CFG
+ */
+bool dominate(BasicBlock *block1, BasicBlock *block2){
+	assert(block1&&block2);
+	assert(block1->dominate);
+	int i;
+	BlockEdge *edge;
+	for(i=0;i<al_size(block1->dominate);i++){
+		edge = al_get(block1->dominate, i);
+		if(edge->head->id == block2->id)
+			return true;
+	}
+	return false;
+}
+
+
 
 /*
  * the recursive function used by buildDFSTree
@@ -1041,6 +1161,203 @@ NaturalLoop *findSmallestUnprocessedLoop(ArrayList *loopList, uint32_t flag){
 	return min_loop;
 }
 
+
+/*
+ * this helper function returns an basicblock end with AND/OR opCode if there's any,
+ * or NULL otherwise
+ */
+BasicBlock *findANDandORBlock(InstrList *iList, ArrayList *blockList){
+	int i;
+	BasicBlock *block;
+	for(i=0;i<al_size(blockList);i++){
+		block = al_get(blockList, i);
+		if(isAND(iList, block->lastInstr)||isOR(iList, block->lastInstr))
+			return block;
+	}
+	return NULL;
+}
+
+
+/*
+ * the recursive function used by processANDandORExp
+ */
+static void markANDandORExp(BasicBlock *n, uint32_t flag){
+	int i;
+	BlockEdge *edge;
+	BasicBlock *block;
+	assert(n);
+	BBL_SET_FLAG(n, flag);
+
+	for(i=0;i<al_size(n->preds);i++){
+		edge = al_get(n->preds, i);
+		block = edge->tail;
+		if(!BBL_HAS_FLAG(block, flag)){
+			markANDandORExp(block, flag);
+		}
+	}
+	printf("block %d marked\n", n->id);
+}
+
+
+/*
+ * this function would fail if any block label by flag but not endFlag
+ * has an edge point to a block not labeled by flag
+ */
+void checkExpValidity(InstrList *iList, ArrayList *blockList, uint32_t flag, uint32_t endFlag){
+	int i, j;
+	BlockEdge *edge;
+	BasicBlock *block;
+	for(i=0;i<al_size(blockList);i++){
+		block = al_get(blockList, i);
+		if(!BBL_HAS_FLAG(block, flag) || BBL_HAS_FLAG(block, endFlag))
+			continue;
+		assert((block->type==BT_FALL_THROUGH)||isAND(iList, block->lastInstr)||isOR(iList, block->lastInstr));
+		for(j=0;j<al_size(block->succs);j++){
+			edge = al_get(block->succs, j);
+			assert(BBL_HAS_FLAG(edge->head, flag));
+		}
+	}
+}
+
+/*
+ * process all the AND/OR expressions
+ * concatenate involved basicblocks in the order of the address
+ */
+void processANDandORExps(InstrList *iList, ArrayList *blockList){
+	assert(blockList);
+
+	int i,j;
+	BasicBlock *startBlock, *endBlock, *tempBlock;
+
+	ArrayList *concatList;
+
+	printf("\n******************************************************************************\n");
+	printf("\n******************************************************************************\n");
+
+	//while there exists an block end with AND/OR opCode, loop
+	while((startBlock=findANDandORBlock(iList, blockList))){
+		//find the corresponding endBlock for this startBlock (there must be one in the trace!)
+		endBlock = findBasicBlockFromListByAddr(blockList, startBlock->lastInstr->addr + startBlock->lastInstr->jmpOffset);
+
+		printf("===============start %d end %d dom %d\n", startBlock->id, endBlock->id, dominate(startBlock, endBlock));
+
+		/*
+		 * we use BBL_FLAG_TMP1 to label the endBlock
+		 * BBL_FLAG_TMP0 to label all blocks between startBlock and endBlock in CFG(including endBlock)
+		 */
+		for(i=0;i<al_size(blockList);i++){
+			tempBlock = al_get(blockList,i);
+			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP0);
+			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP1);
+		}
+		BBL_SET_FLAG(startBlock, BBL_FLAG_TMP0);
+		BBL_SET_FLAG(endBlock, BBL_FLAG_TMP1);
+		markANDandORExp(endBlock, BBL_FLAG_TMP0);
+		checkExpValidity(iList, blockList, BBL_FLAG_TMP0, BBL_FLAG_TMP1);
+
+		/*
+		 * now sort those labeled blocks in order, and concat them together into one basic block
+		 * in other words, treat AND/OR as a non-branch instruction
+		 */
+		concatList = al_newGeneric(AL_LIST_SORTED, blockAddrCompare, NULL, NULL);
+		for(i=0;i<al_size(blockList);i++){
+			tempBlock = al_get(blockList, i);
+			if(BBL_HAS_FLAG(tempBlock, BBL_FLAG_TMP0)){
+				assert(dominate(startBlock, tempBlock));
+				al_add(concatList, (void *)tempBlock);
+			}
+		}
+
+		printf("Concat list:\n/");
+		for(i=0;i<al_size(concatList);i++){
+			tempBlock = (BasicBlock *)al_get(concatList, i);
+			printBasicBlock(tempBlock);
+		}
+
+		//create a new BBL, with all instructions in concatList.
+		//block id and preds are from startBlock, type and succs are from endBlock
+		//count from the max, and flags are the union of all block flags
+		BasicBlock *newBlock = createBasicBlock();
+		al_free((void *)(newBlock->preds));
+		al_free((void *)(newBlock->succs));
+		Instruction *instr;
+		BlockEdge *tempEdge;
+		int listSize = al_size(concatList);
+		for(i=0;i<listSize;i++){
+			tempBlock = (BasicBlock *)al_get(concatList, i);
+			if(i==0){
+				assert(tempBlock==startBlock);
+				newBlock->id = startBlock->id;
+				newBlock->preds = startBlock->preds;
+				newBlock->dfn = startBlock->dfn;
+				newBlock->addr = startBlock->addr;
+				for(j=0;j<al_size(newBlock->preds);j++){
+					tempEdge = al_get(newBlock->preds, j);
+					tempEdge->head = newBlock;
+				}
+			}else if(i==listSize-1){
+				assert(tempBlock==endBlock);
+				newBlock->type = endBlock->type;
+				newBlock->succs = endBlock->succs;
+				newBlock->end_addr = endBlock->end_addr;
+				newBlock->lastInstr = endBlock->lastInstr;
+				for(j=0;j<al_size(newBlock->succs);j++){
+					tempEdge = al_get(newBlock->succs, j);
+					tempEdge->tail = newBlock;
+				}
+			}
+			if(tempBlock->count > newBlock->count){
+				newBlock->count = tempBlock->count;
+			}
+
+			newBlock->flags = newBlock->flags || tempBlock->flags;
+
+			//process each instruction
+			for(j=0;j<al_size(tempBlock->instrs);j++){
+				instr = al_get(tempBlock->instrs, j);
+				instr->inBlock = newBlock;
+				if(i!=0 && INSTR_HAS_FLAG(instr, INSTR_IS_BBL_START)){
+					INSTR_CLR_FLAG(instr, INSTR_IS_BBL_START);
+				}
+				else if(i!=listSize-1 && INSTR_HAS_FLAG(instr, INSTR_IS_BBL_END)){
+					INSTR_CLR_FLAG(instr, INSTR_IS_BBL_END);
+				}
+
+				al_add(newBlock->instrs, (void *)instr);
+			}
+			//remove concatenated block from CFG
+			al_remove(blockList, (void *)tempBlock);
+			//add newBlock into CFG
+			if(i==0){
+				al_add(blockList,newBlock);
+			}
+		}
+		for(i=0;i<listSize;i++){
+			tempBlock = (BasicBlock *)al_get(concatList, i);
+			if(i==0){
+				destroyBasicBlockForConCat(tempBlock, 1);
+			}else if(i==listSize-1){
+				destroyBasicBlockForConCat(tempBlock, 2);
+			}else{
+				destroyBasicBlockForConCat(tempBlock, 0);
+			}
+			tempBlock=NULL;
+		}
+		al_free(concatList);
+		concatList = NULL;
+
+/*		//make sure all the flags are cleared
+		for(i=0;i<al_size(blockList);i++){
+			tempBlock = al_get(blockList,i);
+			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP0);
+			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP1);
+		}*/
+		printBasicBlockList(blockList);
+
+	}
+	printf("\n******************************************************************************\n");
+	printf("\n******************************************************************************\n");
+}
 
 
 

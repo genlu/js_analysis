@@ -21,6 +21,8 @@ void labelInstructionList(InstrList *iList);
 
 Instruction 	*getInstruction(InstrList *iList, int order);
 
+bool isAND(InstrList *iList, Instruction *ins);
+bool isOR(InstrList *iList, Instruction *ins);
 bool is1WayBranch(InstrList *iList, Instruction *ins);
 bool is2WayBranch(InstrList *iList, Instruction *ins);
 bool isNWayBranch(InstrList *iList, Instruction *ins);

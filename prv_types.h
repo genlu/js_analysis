@@ -110,6 +110,7 @@ struct BasicBlock{
     BasicBlockType type;
     ADDRESS addr;       // address of first instruction -- used for lookups
     ADDRESS end_addr;
+    Instruction *lastInstr;		// last instruction in the block, for the purpose of fast lookup
     ArrayList *instrs;  // the instructions in the block: arraylist of Instruction
     ArrayList *preds, *succs;  // predecessors and successors: arraylist of Edge
     int count;
@@ -153,9 +154,11 @@ typedef struct BlockEdge{
 #define EDGE_IS_RET					(1<<4)
 #define EDGE_IS_CALLSITE			(1<<5)			//this edge connects a script-call block and it's returned to block
 #define EDGE_IS_DOMINATE			(1<<6)			//this edge is an dominate-edge, i.e. in block->dominate and tail dom head
+#define EDGE_IS_COMPLEMENT			(1<<7)			//this edge is added as a complement edge, which is not existed in dynamic trace but should be in static CFG
 
-#define EDGE_IS_BRANCHED_PATH					(1<<7)
-#define EDGE_IS_ADJACENT_PATH					(1<<8)
+
+#define EDGE_IS_BRANCHED_PATH					(1<<16)
+#define EDGE_IS_ADJACENT_PATH					(1<<17)
 
 
 #define EDGE_FLAG_TMP0				(1<<30)

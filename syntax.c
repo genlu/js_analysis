@@ -26,6 +26,41 @@ char *null_str = "null";
 
 #define DEBUG 0
 
+int andOrTargetCompare(void *t1, void *t2){
+	assert(t1 && t2);
+	return ((AndOrTarget *)t1)->targetAddr - ((AndOrTarget *)t2)->targetAddr;
+}
+
+void printAndOrTarget(void *target){
+	assert(target);
+	printf("targetAddr: %lx Num: %d\n", ((AndOrTarget *)target)->targetAddr, ((AndOrTarget *)target)->num);
+}
+
+void destroyAndOrTarget(void *target){
+	assert(target);
+	free((AndOrTarget *)target);
+}
+
+AndOrTarget *createAndOrTarget(){
+	AndOrTarget *ret = (AndOrTarget *)malloc(sizeof(AndOrTarget));
+	assert(ret);
+	ret->targetAddr=0;
+	ret->num=0;
+	return ret;
+}
+
+AndOrTarget *searchForTarget(ArrayList *list, ADDRESS addr){
+	assert(list);
+	AndOrTarget *target;
+	int i;
+	for(i=0;i<al_size(list);i++){
+		target = (AndOrTarget *)al_get(list, i);
+		if(target->targetAddr==addr)
+			return target;
+	}
+	return NULL;
+}
+
 StackNode *popSyntaxStack(SyntaxStack *stack){
 	StackNode *temp = NULL;;
 	assert(stack);
@@ -41,6 +76,7 @@ StackNode *popSyntaxStack(SyntaxStack *stack){
 		temp->prev = temp->next = NULL;
 	}
 #if DEBUG
+	assert(temp);
 	printf("stack_size:%d  temp%p\n", stack->number, temp);
 	printf("pop %s\t%d\n",
 			(temp->type==SYN_NODE)?"SYN":"EXP",
@@ -237,6 +273,8 @@ void printExpTreeNode(ExpTreeNode *node){
 			printf("%f", node->u.const_value_double);
 		}else if(EXP_HAS_FLAG(node, EXP_IS_STRING)){
 			printf("\"%s\"", node->u.const_value_str);
+		}else if(EXP_HAS_FLAG(node, EXP_IS_BOOL)){
+			printf("%s", (node->u.const_value_bool==true)?"true":"false");
 		}
 		break;
 	case EXP_CALL:
@@ -326,6 +364,12 @@ void printExpTreeNode(ExpTreeNode *node){
 			break;
 		case OP_NE:
 			printf("!=");
+			break;
+		case OP_AND:
+			printf("&&");
+			break;
+		case OP_OR:
+			printf("||");
 			break;
 		default:
 			printf("?");
@@ -494,7 +538,14 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 	case TN_ASSIGN:
 		printExpTreeNode(node->u.assign.lval);
 		printf(" = ");
-		printExpTreeNode(node->u.assign.rval);
+		if(TN_HAS_FLAG(node, TN_ASSIGN_RVAL_EXP)){
+			printExpTreeNode((ExpTreeNode *)(node->u.assign.rval));
+		}else{
+			assert(TN_HAS_FLAG(node, TN_ASSIGN_RVAL_ASSIGN));
+			printf(" ( ");
+			printSyntaxTreeNode((SyntaxTreeNode *)(node->u.assign.rval));
+			printf(" ) ");
+		}
 		break;
 
 	case TN_EXP:
@@ -554,7 +605,11 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		case TN_IF_ELSE:
 			printf("if");
 			printf("( ");
-			printExpTreeNode(node->u.if_else.cond);
+			if(TN_HAS_FLAG(node, TN_IF_ELSE_COND_EXP)){
+				printExpTreeNode((ExpTreeNode *)(node->u.if_else.cond));
+			}else{
+				printSyntaxTreeNode((SyntaxTreeNode *)(node->u.if_else.cond));
+			}
 			printf(" ) {\n");
 
 			printSyntaxTreeNode(node->u.if_else.if_path);
@@ -620,17 +675,19 @@ void buildBlockSyntaxTreeFromSyntaxStack(SyntaxTreeNode *syntaxBlockNode, Syntax
 
 SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funcObjTable, ArrayList *funcCFGs){
 
-	int i;
+	int i,j;
 
 	int tempInt;
 	char *str;
-	Instruction 	*instr;
+	Instruction 	*instr, *lastInstr;
 	BlockEdge		*edge;
 	SyntaxStack 	*stack;
 	SyntaxTreeNode 	*syntaxBlockNode, *sTreeNode1, *sTreeNode2;
 	ExpTreeNode		*expTreeNode1, *expTreeNode2, *expTreeNode3, *expTreeNode4;
 	StackNode 		*stackNode1, *stackNode2, *stackNode3, *stackNode4;
 	FuncObjTableEntry *funcObjTableEntry1;
+	ArrayList *targetTable;
+	AndOrTarget *andOrTarget;
 
 	syntaxBlockNode = createSyntaxTreeNode();
 	syntaxBlockNode->type = TN_BLOCK;
@@ -638,17 +695,25 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 	syntaxBlockNode->u.block.id = syntaxBlockIDctl++;
 	syntaxBlockNode->u.block.statements = al_new();
 
+	instr = lastInstr = NULL;
+
 
 	stack = createSyntaxStack();
 
-	start_over:
+	//we need a target table for processing AND and OR instructions
+	targetTable = al_newGeneric(AL_LIST_SET, andOrTargetCompare, printAndOrTarget, destroyAndOrTarget);
+
+	//start_over:
 #if DEBUG
-	printf("~~~~~~~~~~~start-over@\n");
+	printf("~~~~~~~~~~~processing block %d\n", block->id);
 	printBasicBlock(block);
 #endif
 	BBL_SET_FLAG(block, flag);
 
 	for(i=0;i<al_size(block->instrs);i++){
+
+		lastInstr = instr;
+
 		instr = al_get(block->instrs, i);
 
 #if DEBUG
@@ -673,8 +738,84 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		sTreeNode1 = sTreeNode2 = NULL;
 		expTreeNode1 = expTreeNode2 = expTreeNode3 = expTreeNode4 = NULL;
 		stackNode1 = stackNode2 = stackNode3 = stackNode4 = NULL;
+		andOrTarget = NULL;
 
-		// main dispatching
+
+
+		//if any missing code due to short circuit, we add an boolean exp as a place holder.
+		// here we made an assumption that AND/OR either jump to short circuit target or fallthough to next expression
+		// if branch, then entire AND expression is false (threfore having a true at last won't affect result)
+		//                        OR expression is true (threfore having a false at last won't affect result)
+		if(lastInstr){
+			if(lastInstr->opCode == JSOP_AND && instr->addr != lastInstr->addr + lastInstr->length){
+				expTreeNode1 = createExpTreeNode();
+				expTreeNode1->type = EXP_CONST_VALUE;
+				expTreeNode1->u.const_value_bool = true;
+				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
+				stackNode1 = createSyntaxStackNode();
+				stackNode1->type = EXP_NODE;
+				stackNode1->node = (void *)expTreeNode1;
+				pushSyntaxStack(stack, stackNode1);
+			}else if(lastInstr->opCode == JSOP_OR && instr->addr != lastInstr->addr + lastInstr->length){
+				expTreeNode1 = createExpTreeNode();
+				expTreeNode1->type = EXP_CONST_VALUE;
+				expTreeNode1->u.const_value_bool = false;
+				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
+				stackNode1 = createSyntaxStackNode();
+				stackNode1->type = EXP_NODE;
+				stackNode1->node = (void *)expTreeNode1;
+				pushSyntaxStack(stack, stackNode1);
+			}
+			expTreeNode1 = NULL;
+			stackNode1 = NULL;
+		}
+		//check if this instruction is a AND/OR branch target.
+		//TODO
+		andOrTarget = searchForTarget(targetTable, instr->addr);
+		if(andOrTarget && andOrTarget->num>0){
+			printf("found one! %lx, %d\n", andOrTarget->targetAddr, andOrTarget->num);
+			//printf("number of synbol in stack: %d\n", stack->number);
+			assert(stack->number>=2*andOrTarget->num);
+			StackNode *ptr = NULL;
+			for(j=0;j<andOrTarget->num;j++){
+				//pop 2nd exp
+				ptr = popSyntaxStack(stack);
+				assert(ptr->type==EXP_NODE);
+				expTreeNode1 = (ExpTreeNode *)ptr->node;	//b in a&&b
+				destroySyntaxStackNode(ptr);
+				//pop and/or token
+				ptr = popSyntaxStack(stack);
+				assert(ptr->type==EXP_NODE);
+				expTreeNode2 = (ExpTreeNode *)ptr->node;	//&& in a&&b
+				assert(expTreeNode2->type==EXP_TOKEN && expTreeNode2->u.tok.targetAddr==andOrTarget->targetAddr);
+				destroySyntaxStackNode(ptr);
+				//pop 1st exp
+				ptr = popSyntaxStack(stack);
+				assert(ptr->type==EXP_NODE);
+				expTreeNode3 = (ExpTreeNode *)ptr->node;	//a in a&&b
+				destroySyntaxStackNode(ptr);
+				//create a binary exp
+				expTreeNode4 = createExpTreeNode();
+				expTreeNode4->type = EXP_BIN;
+				expTreeNode4->u.bin_op.lval = expTreeNode3;
+				expTreeNode4->u.bin_op.rval = expTreeNode1;
+				expTreeNode4->u.bin_op.op = expTreeNode2->u.tok.op;
+				//push it into stack
+				ptr = createSyntaxStackNode();
+				ptr->type = EXP_NODE;
+				ptr->node = (void *)expTreeNode4;
+				pushSyntaxStack(stack, ptr);
+				//clean-up
+				expTreeNode1 = expTreeNode2 = expTreeNode3 = expTreeNode4 = NULL;
+				ptr = NULL;
+			}//end of for
+			al_remove(targetTable, (void *)andOrTarget);
+		}
+
+
+		/*
+		 * main dispatching
+		 */
 		switch(instr->opCode){
 
 		/*****************************************************************************
@@ -691,6 +832,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_STRING:
 		case JSOP_DOUBLE:
 		case JSOP_NULL:
+		case JSOP_TRUE:
+		case JSOP_FALSE:
 			//printf("-- EXP_CONST_VALUE  block#%d: %lx %s\n", instr->inBlock, instr->addr, instr->opName);
 			expTreeNode1 = createExpTreeNode();
 			expTreeNode1->type = EXP_CONST_VALUE;
@@ -716,6 +859,14 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				memcpy(str, instr->operand.s, strlen(instr->operand.s)+1);
 				expTreeNode1->u.const_value_str = str;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_STRING);
+			}
+			else if(instr->opCode==JSOP_TRUE){
+				expTreeNode1->u.const_value_bool = true;
+				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
+			}
+			else if(instr->opCode==JSOP_FALSE){
+				expTreeNode1->u.const_value_bool = false;
+				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
 			}
 			else if(instr->opCode==JSOP_NULL){
 				str = (char *)malloc(strlen(null_str)+1);
@@ -1079,21 +1230,27 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			//printf("-- TN_ASSIGN  block#%d: %lx %s\n", instr->inBlock, instr->addr, instr->opName);
 			stackNode1 = popSyntaxStack(stack);			//rval
 			assert(stackNode1);
-			assert(stackNode1->type == EXP_NODE);
-			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
-			// if rval is an function obj (the flag is set by JSOP_ANONFUNCOBJ only for now)
-			// we need to set up an entry in funcObjTable
-			if(EXP_HAS_FLAG(expTreeNode1, EXP_IS_FUNCTION_OBJ)){
-				str = (char *)malloc(strlen(expTreeNode1->u.name)+1);
-				assert(str);
-				memcpy(str, expTreeNode1->u.name, strlen(expTreeNode1->u.name)+1);
-				funcObjTableEntry1 = createFuncObjTableEntry();
-				funcObjTableEntry1->funcName = str;
-				funcObjTableEntry1->funcObjAddr = instr->objRef;
-				assert(!findFuncObjTableEntry(funcObjTable, funcObjTableEntry1->funcObjAddr));
-				al_add(funcObjTable, funcObjTableEntry1);
-				str = NULL;
+			if(stackNode1->type == EXP_NODE){
+				//assert(stackNode1->type == EXP_NODE);
+				expTreeNode1 = (ExpTreeNode *)stackNode1->node;
+				// if rval is an function obj (the flag is set by JSOP_ANONFUNCOBJ only for now)
+				// we need to set up an entry in funcObjTable
+				if(EXP_HAS_FLAG(expTreeNode1, EXP_IS_FUNCTION_OBJ)){
+					str = (char *)malloc(strlen(expTreeNode1->u.name)+1);
+					assert(str);
+					memcpy(str, expTreeNode1->u.name, strlen(expTreeNode1->u.name)+1);
+					funcObjTableEntry1 = createFuncObjTableEntry();
+					funcObjTableEntry1->funcName = str;
+					funcObjTableEntry1->funcObjAddr = instr->objRef;
+					assert(!findFuncObjTableEntry(funcObjTable, funcObjTableEntry1->funcObjAddr));
+					al_add(funcObjTable, funcObjTableEntry1);
+					str = NULL;
+				}
+			}else{
+				sTreeNode2 = (SyntaxTreeNode *)stackNode1->node;
+				assert(sTreeNode2->type==TN_ASSIGN);
 			}
+
 			expTreeNode2 = createExpTreeNode();			//lval
 			expTreeNode2->type =  EXP_NAME;
 			if(instr->opCode == JSOP_SETGVAR || instr->opCode ==  JSOP_SETNAME){
@@ -1139,7 +1296,13 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1 = createSyntaxTreeNode();
 			sTreeNode1->type = TN_ASSIGN;
 			sTreeNode1->u.assign.lval = expTreeNode2;
-			sTreeNode1->u.assign.rval = expTreeNode1;
+			if(stackNode1->type == EXP_NODE){
+				sTreeNode1->u.assign.rval = (void *)expTreeNode1;
+				TN_SET_FLAG(sTreeNode1, TN_ASSIGN_RVAL_EXP);
+			}else{
+				sTreeNode1->u.assign.rval = (void *)sTreeNode2;
+				TN_SET_FLAG(sTreeNode1, TN_ASSIGN_RVAL_ASSIGN);
+			}
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = SYN_NODE;
 			stackNode2->node = (void *)sTreeNode1;
@@ -1152,24 +1315,32 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = popSyntaxStack(stack);			//rval
 			stackNode2 = popSyntaxStack(stack);			//obj name of lval (propname is in instr.str)
 			assert(stackNode1&&stackNode2);
-			assert(stackNode1->type == EXP_NODE);
-			assert(stackNode2->type == EXP_NODE);
-			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
-			expTreeNode2 = (ExpTreeNode *)stackNode2->node;
-			// if rval is an function obj (the flag is set by JSOP_ANONFUNCOBJ only for now)
-			// we need to set up an entry in funcObjTable
-			if(EXP_HAS_FLAG(expTreeNode1, EXP_IS_FUNCTION_OBJ)){
-				str = (char *)malloc(strlen(expTreeNode1->u.name)+1);
-				assert(str);
-				memcpy(str, expTreeNode1->u.name, strlen(expTreeNode1->u.name)+1);
-				funcObjTableEntry1 = createFuncObjTableEntry();
-				funcObjTableEntry1->funcName = str;
-				funcObjTableEntry1->funcObjAddr = instr->objRef;
-				assert(!findFuncObjTableEntry(funcObjTable, funcObjTableEntry1->funcObjAddr));
-				al_add(funcObjTable, funcObjTableEntry1);
-				str = NULL;
-				//printFuncObjTable(funcObjTable);
+			//rval could be eiterh assign node or expression node
+			if(stackNode1->type == EXP_NODE){
+				assert(stackNode1->type == EXP_NODE);
+				expTreeNode1 = (ExpTreeNode *)stackNode1->node;
+				// if rval is an function obj (the flag is set by JSOP_ANONFUNCOBJ only for now)
+				// we need to set up an entry in funcObjTable
+				if(EXP_HAS_FLAG(expTreeNode1, EXP_IS_FUNCTION_OBJ)){
+					str = (char *)malloc(strlen(expTreeNode1->u.name)+1);
+					assert(str);
+					memcpy(str, expTreeNode1->u.name, strlen(expTreeNode1->u.name)+1);
+					funcObjTableEntry1 = createFuncObjTableEntry();
+					funcObjTableEntry1->funcName = str;
+					funcObjTableEntry1->funcObjAddr = instr->objRef;
+					assert(!findFuncObjTableEntry(funcObjTable, funcObjTableEntry1->funcObjAddr));
+					al_add(funcObjTable, funcObjTableEntry1);
+					str = NULL;
+					//printFuncObjTable(funcObjTable);
+				}
+			}else{
+				sTreeNode2 = (SyntaxTreeNode *)stackNode1->node;
+				assert(sTreeNode2->type==TN_ASSIGN);
 			}
+
+			assert(stackNode2->type == EXP_NODE);
+			expTreeNode2 = (ExpTreeNode *)stackNode2->node;
+
 			//first create a EXP_NAME node for lval's prop name
 			expTreeNode3 = createExpTreeNode();
 			expTreeNode3->type =  EXP_NAME;
@@ -1186,7 +1357,13 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1 = createSyntaxTreeNode();
 			sTreeNode1->type = TN_ASSIGN;
 			sTreeNode1->u.assign.lval = expTreeNode4;
-			sTreeNode1->u.assign.rval = expTreeNode1;
+			if(stackNode1->type == EXP_NODE){
+				sTreeNode1->u.assign.rval = (void *)expTreeNode1;
+				TN_SET_FLAG(sTreeNode1, TN_ASSIGN_RVAL_EXP);
+			}else{
+				sTreeNode1->u.assign.rval = (void *)sTreeNode2;
+				TN_SET_FLAG(sTreeNode1, TN_ASSIGN_RVAL_ASSIGN);
+			}
 			//push it into stack
 			stackNode3 = createSyntaxStackNode();
 			stackNode3->type = SYN_NODE;
@@ -1196,22 +1373,62 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			destroySyntaxStackNode(stackNode2);
 			break;
 
+
+
+		case JSOP_AND:
+		case JSOP_OR:
+			expTreeNode1 = createExpTreeNode();
+			expTreeNode1->type = EXP_TOKEN;
+			if(instr->opCode == JSOP_AND){
+				expTreeNode1->u.tok.op = OP_AND;
+			}else{
+				expTreeNode1->u.tok.op = OP_OR;
+			}
+			//add AndOrTarget into the targetTable (if it's not in there)
+			// or increment the existing target's num by 1
+			//todo
+			andOrTarget = createAndOrTarget();
+			andOrTarget->targetAddr = expTreeNode1->u.tok.targetAddr = instr->addr+instr->jmpOffset;
+			andOrTarget->num = 1;
+			if(al_contains(targetTable,(void *)andOrTarget)){
+				int targetIndex = al_indexOf(targetTable, (void *)andOrTarget);
+				destroyAndOrTarget((void *)andOrTarget);
+				andOrTarget = (AndOrTarget *)al_get(targetTable,targetIndex );
+				assert(andOrTarget->targetAddr==instr->addr+instr->jmpOffset);
+				(andOrTarget->num)++;
+			}else{
+				al_add(targetTable,(void *)andOrTarget);
+			}
+			stackNode1 = createSyntaxStackNode();
+			stackNode1->type = EXP_NODE;
+			stackNode1->node = (void *)expTreeNode1;
+			pushSyntaxStack(stack, stackNode1);
+			break;
+
+
+
 			//  2. type == TN_IF_ELSE
 		case JSOP_IFEQ:
 		case JSOP_IFNE:
-		case JSOP_AND:
-		case JSOP_OR:
 #if DEBUG
-			printf("-- TN_GOTO  block#%d: %lx %s\n", instr->inBlock->id, instr->addr, instr->opName);
+			printf("-- TN_IF_ELSE  block#%d: %lx %s\n", instr->inBlock->id, instr->addr, instr->opName);
 #endif
 			stackNode1 = popSyntaxStack(stack);			//cond
 			assert(stackNode1);
-			assert(stackNode1->type == EXP_NODE);
-			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
+			//condition COULD be an assignment node(syntaxTree node) or an EXP node
 			// create a TN_IF_ELSE node
 			sTreeNode1 = createSyntaxTreeNode();
 			sTreeNode1->type = TN_IF_ELSE;
-			sTreeNode1->u.if_else.cond = expTreeNode1;
+
+			if(stackNode1->type == EXP_NODE){
+				expTreeNode1 = (ExpTreeNode *)stackNode1->node;
+				sTreeNode1->u.if_else.cond = (void *)expTreeNode1;
+				TN_SET_FLAG(sTreeNode1, TN_IF_ELSE_COND_EXP);
+			}else{
+				sTreeNode2 = (SyntaxTreeNode *)stackNode1->node;
+				sTreeNode1->u.if_else.cond = (void *)sTreeNode2;
+				TN_SET_FLAG(sTreeNode1, TN_IF_ELSE_COND_ASSIGN);
+			}
 
 			sTreeNode1->u.if_else.if_path = sTreeNode1->u.if_else.else_path = NULL;
 			//look through outbound edges, and create branch/adjacent path accoedingly
@@ -1454,6 +1671,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_POP:
 		case JSOP_POPV:
 		case JSOP_LINENO:
+		case JSOP_GROUP:
 		default:
 #if DEBUG
 			printf("-- ignore block#%d: %lx %s\n", instr->inBlock->id, instr->addr, instr->opName);
@@ -1475,7 +1693,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 	}
 
 
-	else*/ if(block->type==BT_FALL_THROUGH ){
+	else*/
+	if(block->type==BT_FALL_THROUGH ){
 
 		if(al_size(block->succs)!=1){
 			printBasicBlock(block);
@@ -1524,6 +1743,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 
 	//assert(0);
 
+	al_freeWithElements(targetTable);
 	return syntaxBlockNode;
 }// end buildSyntaxTreeForBlock()
 
@@ -1592,7 +1812,12 @@ static void doSearch(BasicBlock *n, uint32_t flag, ArrayList *syntaxTree, ArrayL
 }
 
 void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
-	assert(loopBlock && loop);
+	//XXX
+	return;
+
+	if(!loopBlock)
+		return;
+	assert(loop);
 	int i;
 	SyntaxTreeNode *sTreeNode;
 
@@ -1600,8 +1825,10 @@ void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
 	switch(loopBlock->type){
 	case TN_IF_ELSE:
 		//printf("dealing if-else\n");
+		//printf("dealing if\n");
 		//printSyntaxTreeNode(loopBlock->u.if_else.if_path);
 		transformGOTOsInLoopBlock(loopBlock->u.if_else.if_path, loop);
+		//printf("dealing else\n");
 		//printSyntaxTreeNode(loopBlock->u.if_else.else_path);
 		transformGOTOsInLoopBlock(loopBlock->u.if_else.else_path, loop);
 		break;
@@ -1623,6 +1850,7 @@ void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
 		//printf("CAUTION: transformGOTOsInLoopBlock() called on a TN_BLOCK:%d\n", loopBlock->u.block.old_id);
 		for(i=0;i<al_size(loopBlock->u.block.statements);i++){
 			sTreeNode = al_get(loopBlock->u.block.statements, i);
+			//printSyntaxTreeNode(sTreeNode);
 			transformGOTOsInLoopBlock(sTreeNode, loop);
 		}
 		break;
@@ -1667,6 +1895,7 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 		//printNaturalLoop(loop);
 		// find loop header Node, and add it into loop node
 		sTreeNode1 = findBlockNodeByOldID(syntaxTree, loop->header->id);
+		assert(sTreeNode1);
 		//printSyntaxTreeNode(sTreeNode1);
 
 		header_index = al_indexOf(syntaxTree, sTreeNode1);

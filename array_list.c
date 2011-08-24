@@ -174,7 +174,7 @@ void al_free(ArrayList *list) {
 /*
  *  al_freeWithElements(list) --
  *
- *  Frees the given list, and caals its free function to free every element
+ *  Frees the given list, and calls its free function to free every element
  *  contained inside it.
  */
 void al_freeWithElements(ArrayList *list) {

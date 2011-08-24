@@ -20,7 +20,7 @@ name_op	instrNames[] = {
 int size = 0;
 
 OpCode getOpCodeFromString(char *name){
-	int i, size;
+	int i;//, size;
 	int found;
 	OpCode op;
 	assert(name);

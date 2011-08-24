@@ -49,4 +49,7 @@ BasicBlock *isBlockTheLoopHeader(NaturalLoop *loop, int block);
 
 NaturalLoop *findSmallestUnprocessedLoop(ArrayList *loopList, uint32_t flag);
 
+
+void processANDandORExps(InstrList *iList, ArrayList *blockList);
+
 #endif /* _CFG_H */

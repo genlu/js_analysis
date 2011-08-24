@@ -195,6 +195,23 @@ WriteSet *getMemDef(InstrList *iList, int order){
 	return ws;
 }
 
+bool isAND(InstrList *iList, Instruction *ins){
+	assert(ins);
+	if(!strcmp(ins->opName, "and"))
+		return true;
+	else
+		return false;
+}
+
+bool isOR(InstrList *iList, Instruction *ins){
+	assert(ins);
+	if(!strcmp(ins->opName, "or"))
+		return true;
+	else
+		return false;
+}
+
+
 
 bool is1WayBranch(InstrList *iList, Instruction *ins){
 	assert(ins);

@@ -18,6 +18,14 @@ typedef struct SyntaxStack SyntaxStack;
 
 /*********************************************************************************/
 
+typedef struct AndOrTarget{
+	ADDRESS targetAddr;
+	int num;
+}AndOrTarget;
+
+
+/*********************************************************************************/
+
 typedef enum{
 //binary
 	OP_ADD,
@@ -46,7 +54,11 @@ typedef enum{
 	OP_VINC,
 	OP_VDEC,	
 	OP_INCV,
-	OP_DECV
+	OP_DECV,
+
+// for AND and OR,
+	OP_AND,
+	OP_OR
 	
 } Operator;
 
@@ -64,7 +76,8 @@ typedef enum{
 	EXP_ARRAY_ELM,
 	EXP_ARRAY_INIT,		//and array initialzation struct, as [1,2,3...], contains a list of
 	EXP_PROP,		//contain 2 children, one is the name/prep represent obj, other is name represent prop
-	EXP_EVAL
+	EXP_EVAL,
+	EXP_TOKEN		// this is for processing AND/OR instructions, serve as a temp token in the espression stack
 } ExpTreeNodeType;
 
 typedef struct ExpTreeNode ExpTreeNode;
@@ -80,6 +93,7 @@ struct ExpTreeNode{
 		double	const_value_double;
 		char	*const_value_str;
 		long	const_value_int;
+		bool	const_value_bool;
 
 		//EXP_UN
 		struct{
@@ -120,14 +134,23 @@ struct ExpTreeNode{
 			ExpTreeNode *objName;
 			ExpTreeNode *propName;
 		} prop;
+
+		struct{
+			ADDRESS targetAddr;
+			Operator op;
+		} tok;
 	} u;
 };
 
 #define EXP_IS_STRING			(1<<0)
 #define EXP_IS_INT				(1<<1)
 #define	EXP_IS_DOUBLE			(1<<2)
-#define EXP_IS_FUNCTION_OBJ		(1<<3)
-#define EXP_IS_PROP_INIT		(1<<4)
+#define	EXP_IS_BOOL				(1<<3)
+#define EXP_IS_FUNCTION_OBJ		(1<<4)
+#define EXP_IS_PROP_INIT		(1<<5)
+
+
+
 
 #define	EXP_SET_FLAG(exp, flag)		(exp->flags |= flag)
 #define	EXP_CLR_FLAG(exp, flag)		(exp->flags &= ~flag)
@@ -165,6 +188,7 @@ struct SyntaxTreeNode{
 		} block;
 
 		struct{
+			ExpTreeNode *cond;
 			NaturalLoop *loopStruct;
 			BasicBlock	*header;
 			ArrayList 	*loopBody;
@@ -179,7 +203,7 @@ struct SyntaxTreeNode{
 
 		struct{
 			ExpTreeNode *lval;
-			ExpTreeNode *rval;
+			void *rval;
 		} assign;
 
 		struct{
@@ -192,7 +216,8 @@ struct SyntaxTreeNode{
 		} go_to;
 
 		struct{
-			ExpTreeNode *cond;
+			//ExpTreeNode *cond;
+			void *cond;
 			// ifeq: if-path->adj_path  else-path->branch_path
 			// ifne: if-path->branch_path  else-path->adj_path
 			SyntaxTreeNode *if_path;
@@ -203,6 +228,12 @@ struct SyntaxTreeNode{
 
 #define	TN_IS_GOTO_BREAK				(1<<0)
 #define TN_IS_GOTO_CONTINUE				(1<<1)
+
+#define TN_IF_ELSE_COND_ASSIGN			(1<<2)		//an if-else node's condition is an assignment node (TN_ASSIGN)
+#define TN_IF_ELSE_COND_EXP				(1<<3)		//an if-else node's condition is an exp node (ExpTreeNode)
+
+#define TN_ASSIGN_RVAL_ASSIGN			(1<<5)		// the rval of an assign node is an assign node
+#define TN_ASSIGN_RVAL_EXP				(1<<4)		// the rval of an assign node is an exp node
 
 #define	TN_SET_FLAG(tn, flag)		(tn->flags |= flag)
 #define	TN_CLR_FLAG(tn, flag)		(tn->flags &= ~flag)
