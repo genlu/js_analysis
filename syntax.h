@@ -46,6 +46,8 @@ typedef enum{
 
 	OP_INITPROP,
 
+	OP_ASSIGN,
+
 //unary
 
 	OP_NOT,
@@ -97,7 +99,7 @@ struct ExpTreeNode{
 
 		//EXP_UN
 		struct{
-			char	*name;	// this is for inc/dec operation only //should be removed
+			char	*name;	// this is for inc/dec operation only
 			Operator op;
 			ExpTreeNode *lval;
 		} un_op;
@@ -150,8 +152,6 @@ struct ExpTreeNode{
 #define EXP_IS_PROP_INIT		(1<<5)
 
 
-
-
 #define	EXP_SET_FLAG(exp, flag)		(exp->flags |= flag)
 #define	EXP_CLR_FLAG(exp, flag)		(exp->flags &= ~flag)
 #define	EXP_HAS_FLAG(exp, flag)		(exp->flags & flag)
@@ -162,8 +162,7 @@ struct ExpTreeNode{
 typedef enum {
 	TN_FUNCTION,
 	TN_BLOCK,	//basic block
-	TN_INC_DEC,
-	TN_ASSIGN,
+	//TN_INC_DEC,
 	TN_IF_ELSE,
 	TN_GOTO,
 	TN_RETURN,
@@ -203,21 +202,21 @@ struct SyntaxTreeNode{
 
 		struct{
 			ExpTreeNode *lval;
-			void *rval;
+			ExpTreeNode *rval;
+			//void *rval;
 		} assign;
 
-		struct{
+/*		struct{
 			ExpTreeNode *name;
 			Operator 	op;
-		} inc_dec;
+		} inc_dec;*/
 
 		struct{
 			BasicBlock *targetBlock;
 		} go_to;
 
 		struct{
-			//ExpTreeNode *cond;
-			void *cond;
+			ExpTreeNode *cond;
 			// ifeq: if-path->adj_path  else-path->branch_path
 			// ifne: if-path->branch_path  else-path->adj_path
 			SyntaxTreeNode *if_path;
@@ -228,12 +227,6 @@ struct SyntaxTreeNode{
 
 #define	TN_IS_GOTO_BREAK				(1<<0)
 #define TN_IS_GOTO_CONTINUE				(1<<1)
-
-#define TN_IF_ELSE_COND_ASSIGN			(1<<2)		//an if-else node's condition is an assignment node (TN_ASSIGN)
-#define TN_IF_ELSE_COND_EXP				(1<<3)		//an if-else node's condition is an exp node (ExpTreeNode)
-
-#define TN_ASSIGN_RVAL_ASSIGN			(1<<5)		// the rval of an assign node is an assign node
-#define TN_ASSIGN_RVAL_EXP				(1<<4)		// the rval of an assign node is an exp node
 
 #define	TN_SET_FLAG(tn, flag)		(tn->flags |= flag)
 #define	TN_CLR_FLAG(tn, flag)		(tn->flags &= ~flag)

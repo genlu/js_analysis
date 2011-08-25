@@ -175,8 +175,6 @@ int main (int argc, char *argv[]) {
     //concatenate involved basicblocks in the order of the address
     processANDandORExps(iList, funcBlockList);
 
-    findDominators(funcBlockList);
-    buildDFSTree(funcBlockList);
 
     /*
      * mark all retreat edges and backedges in given CFG and DFS-Tree

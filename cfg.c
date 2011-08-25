@@ -1271,8 +1271,9 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 		printf("Concat list:\n/");
 		for(i=0;i<al_size(concatList);i++){
 			tempBlock = (BasicBlock *)al_get(concatList, i);
-			printBasicBlock(tempBlock);
+			printf(" %d ", tempBlock->id);
 		}
+		printf("\n");
 
 		//create a new BBL, with all instructions in concatList.
 		//block id and preds are from startBlock, type and succs are from endBlock
@@ -1316,6 +1317,9 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 			for(j=0;j<al_size(tempBlock->instrs);j++){
 				instr = al_get(tempBlock->instrs, j);
 				instr->inBlock = newBlock;
+				if(INSTR_HAS_FLAG(instr, INSTR_IS_2_BRANCH) && (isAND(iList, instr) || isOR(iList, instr))){
+					INSTR_CLR_FLAG(instr, INSTR_IS_2_BRANCH);
+				}
 				if(i!=0 && INSTR_HAS_FLAG(instr, INSTR_IS_BBL_START)){
 					INSTR_CLR_FLAG(instr, INSTR_IS_BBL_START);
 				}
@@ -1353,6 +1357,10 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP1);
 		}*/
 		printBasicBlockList(blockList);
+
+	    //XXX memory leakage (dom edges)
+	    findDominators(blockList);
+	    buildDFSTree(blockList);
 
 	}
 	printf("\n******************************************************************************\n");
