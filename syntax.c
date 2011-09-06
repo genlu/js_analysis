@@ -311,7 +311,7 @@ void printExpTreeNode(ExpTreeNode *node){
 				printf(", ");
 		}
 		printf(" )");
-		if(BBL_HAS_FLAG(node->u.func.funcEntryBlock, BBL_IS_EVAL_ENTRY)){
+		if(node->type==EXP_EVAL){
 			sprintf(str, "block_%d", node->u.func.funcEntryBlock->id);
 			printf("/* eval'ed code -> %s */", str);
 		}
@@ -717,6 +717,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 
 	syntaxBlockNode = createSyntaxTreeNode();
 	syntaxBlockNode->type = TN_BLOCK;
+	syntaxBlockNode->predsList = al_new();
 	syntaxBlockNode->u.block.cfg_id = block->id;
 	syntaxBlockNode->u.block.cfgBlock = block;
 	syntaxBlockNode->u.block.statements = al_new();
@@ -2123,6 +2124,8 @@ void relinkGotos(SyntaxTreeNode *parent, SyntaxTreeNode *node, ArrayList *list){
 			if(index>=0){
 				tempPair = (void **)al_get(list, index);
 				node->u.go_to.synTargetBlock = (SyntaxTreeNode *)(tempPair[1]);
+				assert(((SyntaxTreeNode *)(tempPair[1]))->predsList);
+				al_add(((SyntaxTreeNode *)(tempPair[1]))->predsList, (void *)node);
 			}else{
 				node->u.go_to.synTargetBlock = NULL;
 				assert(0);
