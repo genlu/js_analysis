@@ -308,6 +308,8 @@ BasicBlock *createBasicBlock(void){
 	new->dfn = -1;			//depth-first number
 	new->dominators = NULL;//al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
 	new->dominate = NULL;
+	new->immDomPreds = NULL;
+	new->immDomSuccs = NULL;
 	new->type = BT_UNKNOWN;
 	new->flags = 0;
 	assert(new->preds && new->succs);
@@ -340,8 +342,14 @@ void destroyBasicBlock(void *block) {
 	if(bbl->dominators)
 		al_free(bbl->dominators);
 
-/*	if(bbl->dominate)
-		al_freeWithElements(bbl->dominate);*/
+	if(bbl->dominate)
+		al_freeWithElements(bbl->dominate);
+
+	if(bbl->immDomPreds)
+		al_freeWithElements(bbl->immDomPreds);
+
+	if(bbl->immDomSuccs)
+		al_freeWithElements(bbl->immDomSuccs);
 
 	bbl->id = -1;
 
@@ -378,8 +386,8 @@ void destroyBasicBlockForConCat(BasicBlock *block, int flag) {
 	if(bbl->dominators)
 		al_free(bbl->dominators);
 
-/*	if(bbl->dominate)
-		al_freeWithElements(bbl->dominate);*/
+	if(bbl->dominate)
+		al_freeWithElements(bbl->dominate);
 
 	bbl->id = -1;
 
@@ -697,6 +705,8 @@ void printDominators(ArrayList *blockList){
 	}
 }
 
+
+
 void printDomList(ArrayList *blockList){
 	int i,j;
 	BasicBlock *b1;
@@ -712,6 +722,23 @@ void printDomList(ArrayList *blockList){
 		}
 		printf("\n");
 	}
+}
+
+
+/*
+ * return true if block1 dominate block2 in CFG
+ */
+bool dominate(BasicBlock *block1, BasicBlock *block2){
+	assert(block1&&block2);
+	assert(block1->dominate);
+	int i;
+	BlockEdge *edge;
+	for(i=0;i<al_size(block1->dominate);i++){
+		edge = al_get(block1->dominate, i);
+		if(edge->head->id == block2->id)
+			return true;
+	}
+	return false;
 }
 
 /*
@@ -754,12 +781,11 @@ ArrayList *findDominatorHelper(BasicBlock *block){
  */
 void findDominators(ArrayList *blockList){
 	assert(blockList);
-	BasicBlock *block;
-	BasicBlock *block2;
+	BasicBlock *block, *block2, *block3;
 	ArrayList *domTemp;
 	BlockEdge *domEdge;
 	int change;
-	int i,j;
+	int i,j,k;
 
 	/* Initialize D(n) for each node n.
 	 * D(n) = {n0}, if n==n0
@@ -767,7 +793,9 @@ void findDominators(ArrayList *blockList){
 	 */
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);
-		block->dominate = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		if(block->dominators){
+			al_free(block->dominators);
+		}
 		//block 0 is garanteed to be the entry node
 		if(BBL_HAS_FLAG(block, BBL_IS_ENTRY_NODE)){
 			//assert(BBL_HAS_FLAG(block, BBL_IS_ENTRY_NODE));
@@ -814,8 +842,13 @@ void findDominators(ArrayList *blockList){
 
 	printDominators(blockList);
 
+	//calculate block->dominate
 	for(i=0;i<al_size(blockList);i++){
 		block = (BasicBlock *)al_get(blockList,i);
+		if(block->dominate){
+			al_freeWithElements(block->dominate);
+		}
+		block->dominate = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
 
 		for(j=0;j<al_size(block->dominators);j++){
 			//block2 dominates block
@@ -833,23 +866,52 @@ void findDominators(ArrayList *blockList){
 	}
 
 	printDomList(blockList);
+
+	//construct dom-tree
+	for(i=0;i<al_size(blockList);i++){
+		block = (BasicBlock *)al_get(blockList,i);
+		if(block->immDomPreds){
+			al_freeWithElements(block->immDomPreds);
+		}
+		if(block->immDomSuccs){
+			al_freeWithElements(block->immDomSuccs);
+		}
+		block->immDomPreds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		block->immDomSuccs = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+
+		for(j=0;j<al_size(block->dominators);j++){
+			//block2 dominates block
+			block2 =  (BasicBlock *)al_get(block->dominators,j);
+			if(block2->id == block->id){
+				continue;
+			}
+			for(k=0;k<al_size(block->dominators);k++){
+				block3 = (BasicBlock *)al_get(block->dominators,k);
+				if(block3->id == block->id){
+					continue;
+				}
+				if(!dominate(block3, block2)){
+					block2 = NULL;		//then block2 cannot be the imm dominator of block, set to NULL as a flag
+					break;
+				}
+			}
+			if(!block2)
+				continue;
+			//printf("block%d is imm-dominator of block%d\n", block2->id, block->id);
+			//then block is imm dominator of block
+			domEdge = createBlockEdge();
+			domEdge->tail = block2;
+			domEdge->head = block;
+			EDGE_SET_FLAG(domEdge, EDGE_IS_IMM_DOM);
+			al_add(block->immDomPreds, domEdge);
+			al_add(block2->immDomSuccs, domEdge);
+
+
+		}
+	}
 }
 
-/*
- * return true if block1 dominate block2 in CFG
- */
-bool dominate(BasicBlock *block1, BasicBlock *block2){
-	assert(block1&&block2);
-	assert(block1->dominate);
-	int i;
-	BlockEdge *edge;
-	for(i=0;i<al_size(block1->dominate);i++){
-		edge = al_get(block1->dominate, i);
-		if(edge->head->id == block2->id)
-			return true;
-	}
-	return false;
-}
+
 
 
 
@@ -1232,7 +1294,7 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 	ArrayList *concatList;
 
 	printf("\n******************************************************************************\n");
-	printf("\n******************************************************************************\n");
+	printf("process all the AND/OR expressions\n");
 
 	//while there exists an block end with AND/OR opCode, loop
 	while((startBlock=findANDandORBlock(iList, blockList))){

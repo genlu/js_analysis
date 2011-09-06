@@ -14,8 +14,8 @@
 #include "syntax.h"
 #include "function.h"
 
-static int syntaxBlockIDctl;
-static int anonfunobjctl;
+static int syntaxBlockIDctl=0;
+static int anonfunobjctl=0;
 
 char *this_str = "this";
 char *anonfunobj_str = "anonfunobj";
@@ -25,6 +25,25 @@ char *length_str = "length";
 char *null_str = "null";
 
 #define DEBUG 0
+
+
+void **createIdPair(){
+	void **pair = (void **)malloc(2*sizeof(void *));
+	return pair;
+}
+
+void destroyIdPair(void *p){
+	assert(p);
+	void **pair = (void **)p;
+	free(pair);
+}
+
+int idPairCompare(void *t1, void *t2){
+	assert(t1 && t2);
+	return ((BasicBlock *)((void **)t1)[0])->id - ((BasicBlock *)((void **)t2)[0])->id;
+}
+
+//////////////////////////////////////
 
 int andOrTargetCompare(void *t1, void *t2){
 	assert(t1 && t2);
@@ -292,9 +311,9 @@ void printExpTreeNode(ExpTreeNode *node){
 				printf(", ");
 		}
 		printf(" )");
-		if(node->u.func.funcEntryBlock){
+		if(BBL_HAS_FLAG(node->u.func.funcEntryBlock, BBL_IS_EVAL_ENTRY)){
 			sprintf(str, "block_%d", node->u.func.funcEntryBlock->id);
-			printf("/* function/eval'ed code -> %s */", str);
+			printf("/* eval'ed code -> %s */", str);
 		}
 		break;
 	case EXP_NEW:
@@ -458,14 +477,20 @@ SyntaxTreeNode *createSyntaxTreeNode(){
 	node = (SyntaxTreeNode *)malloc(sizeof(SyntaxTreeNode));
 	assert(node);
 	node->flags = 0;
+	node->parent = NULL;
+	node->predsList = NULL;
+	node->id = syntaxBlockIDctl++;
 	memset(&(node->u), 0, sizeof(node->u));
 	return node;
 }
 
 void destroySyntaxTreeNode(SyntaxTreeNode *node){
 	//TODO
-	if(node)
+	if(node){
+		if(node->predsList)
+			al_free(node->predsList);
 		free(node);
+	}
 }
 
 
@@ -475,14 +500,14 @@ int SyntaxTreeNodeCompareByBlockID(void *i1, void *i2){
 	assert(((SyntaxTreeNode *)i2)->type == TN_BLOCK || ((SyntaxTreeNode *)i2)->type == TN_WHILE || ((SyntaxTreeNode *)i1)->type == TN_FUNCTION);
 	int id1, id2;
 	if(((SyntaxTreeNode *)i1)->type == TN_BLOCK){
-		id1 = ((SyntaxTreeNode *)i1)->u.block.old_id;
+		id1 = ((SyntaxTreeNode *)i1)->u.block.cfg_id;
 	}else if(((SyntaxTreeNode *)i1)->type == TN_WHILE){
 		id1 = ((SyntaxTreeNode *)i1)->u.loop.header->id;
 	}else
 		id1 = ((SyntaxTreeNode *)i1)->u.func.funcStruct->funcEntryBlock->id;
 
 	if(((SyntaxTreeNode *)i2)->type == TN_BLOCK){
-		id2 = ((SyntaxTreeNode *)i2)->u.block.old_id;
+		id2 = ((SyntaxTreeNode *)i2)->u.block.cfg_id;
 	}else if(((SyntaxTreeNode *)i2)->type == TN_WHILE){
 		id2 = ((SyntaxTreeNode *)i2)->u.loop.header->id;
 	}else
@@ -508,8 +533,10 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 	switch(node->type){
 
 	case TN_FUNCTION:
+		//eval'ed code block still use CFG id instead of SyntaxTreeNode ID!!!!!!
 		if(BBL_HAS_FLAG(node->u.func.funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY)){
-			printf("//eval''ed block\n");
+			sprintf(str, "block_%d:", node->u.func.funcStruct->funcEntryBlock->id);
+			printf("//eval'ed code\n%s", str);
 			printf("{\n");
 		}
 		else{
@@ -534,6 +561,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 
 	case TN_WHILE:
 		//printf("while(true) {\n");
+		printf("block_%d:", node->u.loop.synHeader->id);
 		printf("while( "); printExpTreeNode(node->u.loop.cond);printf(" ){\n");
 		for(i=0;i<al_size(node->u.loop.loopBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.loop.loopBody, i);
@@ -545,7 +573,12 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		break;
 
 	case TN_BLOCK:
-		sprintf(str, "block_%d:", node->u.block.old_id);
+		if(TN_HAS_FLAG(node, TN_NOT_SHOW_LABEL)){
+			sprintf(str, "\n");
+		}else if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
+			sprintf(str, "block_%d:", node->id);
+		else
+			sprintf(str, "block_%d:", node->u.block.cfg_id);
 		printf("\n%s\n", str);
 		for(i=0;i<al_size(node->u.block.statements);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.block.statements, i);
@@ -566,7 +599,10 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		}else if(TN_HAS_FLAG(node, TN_IS_GOTO_CONTINUE)){
 			printf("continue;");
 		}else{
-			sprintf(str, "block_%d", node->u.go_to.targetBlock->id);
+			if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
+				sprintf(str, "block_%d", node->u.go_to.synTargetBlock->id);
+			else
+				sprintf(str, "block_%d", node->u.go_to.targetBlock->id);
 			printf("goto %s ", str);
 		}
 		break;
@@ -591,13 +627,17 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		printExpTreeNode(node->u.if_else.cond);
 
 		printf(" ) {\n");
-
-		printSyntaxTreeNode(node->u.if_else.if_path);
+		for(i=0;i<al_size(node->u.if_else.if_path);i++){
+			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.if_path, i);
+			printSyntaxTreeNode(sTreeNode);
+		}
 		printf(";");
 
 		printf(" \n}\nelse {\n");
-
-		printSyntaxTreeNode(node->u.if_else.else_path);
+		for(i=0;i<al_size(node->u.if_else.else_path);i++){
+			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.else_path, i);
+			printSyntaxTreeNode(sTreeNode);
+		}
 		printf(";");
 
 		printf("\n}");
@@ -677,8 +717,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 
 	syntaxBlockNode = createSyntaxTreeNode();
 	syntaxBlockNode->type = TN_BLOCK;
-	syntaxBlockNode->u.block.old_id = block->id;
-	syntaxBlockNode->u.block.id = syntaxBlockIDctl++;
+	syntaxBlockNode->u.block.cfg_id = block->id;
+	syntaxBlockNode->u.block.cfgBlock = block;
 	syntaxBlockNode->u.block.statements = al_new();
 
 	instr = lastInstr = NULL;
@@ -774,7 +814,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				assert(ptr->type==EXP_NODE);
 				expTreeNode2 = (ExpTreeNode *)ptr->node;	//&& in a&&b
 				assert(expTreeNode2->type==EXP_TOKEN);
-				if(!(expTreeNode2->u.tok.targetAddr==andOrTarget->targetAddr))
+				if(expTreeNode2->u.tok.targetAddr!=andOrTarget->targetAddr)
 					j--;
 				destroySyntaxStackNode(ptr);
 				//pop 1st exp
@@ -1491,7 +1531,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
 			sTreeNode1->u.if_else.cond = expTreeNode1;
 
-			sTreeNode1->u.if_else.if_path = sTreeNode1->u.if_else.else_path = NULL;
+			sTreeNode1->u.if_else.if_path = al_new();
+			sTreeNode1->u.if_else.else_path = al_new();
 			//look through outbound edges, and create branch/adjacent path accoedingly
 			//printf("num_edges: %d\n", al_size(block->succs));
 			for(tempInt=0;tempInt<al_size(block->succs);tempInt++){
@@ -1505,10 +1546,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 					sTreeNode2->type = TN_GOTO;
 					sTreeNode2->u.go_to.targetBlock = edge->head;
 					if(instr->opCode==JSOP_IFEQ){
-						sTreeNode1->u.if_else.if_path = sTreeNode2;
+						al_add(sTreeNode1->u.if_else.if_path, (void *)sTreeNode2);
 					}
 					else if(instr->opCode==JSOP_IFNE){
-						sTreeNode1->u.if_else.else_path = sTreeNode2;
+						al_add(sTreeNode1->u.if_else.else_path, (void *)sTreeNode2);
 					}
 				}
 				else if(EDGE_HAS_FLAG(edge, EDGE_IS_BRANCHED_PATH)){
@@ -1516,10 +1557,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 					sTreeNode2->type = TN_GOTO;
 					sTreeNode2->u.go_to.targetBlock = edge->head;
 					if(instr->opCode==JSOP_IFEQ){
-						sTreeNode1->u.if_else.else_path = sTreeNode2;
+						al_add(sTreeNode1->u.if_else.else_path, (void *)sTreeNode2);
 					}
 					else if(instr->opCode==JSOP_IFNE){
-						sTreeNode1->u.if_else.if_path = sTreeNode2;
+						al_add(sTreeNode1->u.if_else.if_path, (void *)sTreeNode2);
 					}
 				}
 			}
@@ -1669,8 +1710,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		//add label for next block
 		sTreeNode2 = createSyntaxTreeNode();
 		sTreeNode2->type = TN_BLOCK;
-		sTreeNode2->u.block.old_id = block->id;
-		sTreeNode2->u.block.id = syntaxBlockIDctl++;
+		sTreeNode2->u.block.cfg_id = block->id;
+		sTreeNode2->id = syntaxBlockIDctl++;
 		sTreeNode2->u.block.statements = al_new();
 		stackNode2 = createSyntaxStackNode();
 		stackNode2->type = SYN_NODE;
@@ -1704,7 +1745,7 @@ SyntaxTreeNode *findBlockNodeByOldID(ArrayList *syntaxTree, int oldID){
 	for(i=0;i<al_size(syntaxTree);i++){
 		node = al_get(syntaxTree, i);
 		//assert(node->type == TN_BLOCK);
-		if(node->type == TN_BLOCK && node->u.block.old_id==oldID)
+		if(node->type == TN_BLOCK && node->u.block.cfg_id==oldID)
 			return node;
 		if(node->type == TN_WHILE && node->u.loop.header->id==oldID )
 			return node;
@@ -1751,17 +1792,25 @@ static void doSearch(BasicBlock *n, uint32_t flag, ArrayList *syntaxTree, ArrayL
 	syntaxBlockNode = buildSyntaxTreeForBlock(n, flag, funObjTable, funcCFGs);
 	al_add(syntaxTree, syntaxBlockNode);
 
-	for(i=0;i<al_size(n->dominate);i++){
-		edge = al_get(n->dominate, i);
+	for(i=0;i<al_size(n->immDomSuccs);i++){
+		edge = al_get(n->immDomSuccs, i);
 		block = edge->head;
 		if(!BBL_HAS_FLAG(block, flag)){
 			doSearch(block, flag, syntaxTree, funObjTable, funcCFGs);
 		}
 	}
+
+/*	for(i=0;i<al_size(n->dominate);i++){
+		edge = al_get(n->dominate, i);
+		block = edge->head;
+		if(!BBL_HAS_FLAG(block, flag)){
+			doSearch(block, flag, syntaxTree, funObjTable, funcCFGs);
+		}
+	}*/
 }
 
 void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
-	//XXX
+	//XXX need rewrite!!!
 	return;
 
 	if(!loopBlock)
@@ -1776,10 +1825,16 @@ void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
 		//printf("dealing if-else\n");
 		//printf("dealing if\n");
 		//printSyntaxTreeNode(loopBlock->u.if_else.if_path);
-		transformGOTOsInLoopBlock(loopBlock->u.if_else.if_path, loop);
+		for(i=0;i<al_size(loopBlock->u.if_else.if_path);i++){
+			sTreeNode = al_get(loopBlock->u.if_else.if_path, i);
+			transformGOTOsInLoopBlock(sTreeNode, loop);
+		}
 		//printf("dealing else\n");
 		//printSyntaxTreeNode(loopBlock->u.if_else.else_path);
-		transformGOTOsInLoopBlock(loopBlock->u.if_else.else_path, loop);
+		for(i=0;i<al_size(loopBlock->u.if_else.else_path);i++){
+			sTreeNode = al_get(loopBlock->u.if_else.else_path, i);
+			transformGOTOsInLoopBlock(sTreeNode, loop);
+		}
 		break;
 	case TN_GOTO:
 		//if goto loop header
@@ -1796,7 +1851,7 @@ void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
 		}
 		break;
 	case TN_BLOCK:
-		//printf("CAUTION: transformGOTOsInLoopBlock() called on a TN_BLOCK:%d\n", loopBlock->u.block.old_id);
+		//printf("CAUTION: transformGOTOsInLoopBlock() called on a TN_BLOCK:%d\n", loopBlock->u.block.cfg_id);
 		for(i=0;i<al_size(loopBlock->u.block.statements);i++){
 			sTreeNode = al_get(loopBlock->u.block.statements, i);
 			//printSyntaxTreeNode(sTreeNode);
@@ -1844,11 +1899,13 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 		expTreeNode1->u.const_value_bool = true;
 		EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
 		loopNode->u.loop.cond = expTreeNode1;
-		loopNode->u.loop.loopBody = al_newGeneric(AL_LIST_SORTED, SyntaxTreeNodeCompareByBlockID, NULL, NULL);
+		loopNode->u.loop.loopBody = al_newGeneric(AL_LIST_SET, SyntaxTreeNodeCompareByBlockID, NULL, NULL);
 		//printNaturalLoop(loop);
 		// find loop header Node, and add it into loop node
 		sTreeNode1 = findBlockNodeByOldID(syntaxTree, loop->header->id);
 		assert(sTreeNode1);
+		loopNode->u.loop.synHeader = sTreeNode1;
+		TN_SET_FLAG(sTreeNode1, TN_NOT_SHOW_LABEL);
 		//printSyntaxTreeNode(sTreeNode1);
 
 		header_index = al_indexOf(syntaxTree, sTreeNode1);
@@ -1856,7 +1913,7 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 		al_add(loopNode->u.loop.loopBody, sTreeNode1);
 
 		al_insertAt(syntaxTree, loopNode, header_index);
-		transformGOTOsInLoopBlock(sTreeNode1, loop);
+		//transformGOTOsInLoopBlock(sTreeNode1, loop);
 
 		//then we iterate through the syntaxTree list, and find nodes in loop
 		for(i=0;i<al_size(syntaxTree);i++){
@@ -1865,8 +1922,8 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 			assert(sTreeNode1->type==TN_BLOCK || sTreeNode1->type==TN_WHILE);
 			if(sTreeNode1->type==TN_BLOCK){
 				//if block is in the loop
-				if(isBlockInTheLoop(loop, sTreeNode1->u.block.old_id)){
-					assert(!isBlockTheLoopHeader(loop, sTreeNode1->u.block.old_id));
+				if(isBlockInTheLoop(loop, sTreeNode1->u.block.cfg_id)){
+					assert(!isBlockTheLoopHeader(loop, sTreeNode1->u.block.cfg_id));
 					al_remove(syntaxTree, sTreeNode1);
 					al_add(loopNode->u.loop.loopBody, sTreeNode1);
 					move_flag++;
@@ -1885,7 +1942,7 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 				}
 			}
 			if(move_flag){
-				transformGOTOsInLoopBlock(sTreeNode1, loop);
+				//transformGOTOsInLoopBlock(sTreeNode1, loop);
 				i--;
 			}
 		}//end for-loop
@@ -1926,10 +1983,13 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 		funcNode = createSyntaxTreeNode();
 		funcNode->type = TN_FUNCTION;
 		funcNode->u.func.funcStruct = func;
-		funcNode->u.func.funcBody = al_newGeneric(AL_LIST_SORTED, SyntaxTreeNodeCompareByBlockID, NULL, NULL);
+		funcNode->u.func.funcBody = al_newGeneric(AL_LIST_SET, SyntaxTreeNodeCompareByBlockID, NULL, NULL);
 
 
 		sTreeNode1 = findBlockNodeByOldID(syntaxTree, func->funcEntryBlock->id);
+		assert(sTreeNode1);
+		funcNode->u.func.synFuncEntryNode = sTreeNode1;
+		TN_SET_FLAG(sTreeNode1, TN_NOT_SHOW_LABEL);
 		al_remove(syntaxTree, sTreeNode1);
 		al_add(funcNode->u.func.funcBody, sTreeNode1);
 		//alway indert function at the beginning
@@ -1941,7 +2001,7 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 			assert(sTreeNode1->type==TN_BLOCK || sTreeNode1->type==TN_WHILE || sTreeNode1->type==TN_FUNCTION);
 			if(sTreeNode1->type==TN_BLOCK){
 				//if block is in the loop
-				if(isBlockInTheFunction(func, sTreeNode1->u.block.old_id)){
+				if(isBlockInTheFunction(func, sTreeNode1->u.block.cfg_id)){
 					al_remove(syntaxTree, sTreeNode1);
 					al_add(funcNode->u.func.funcBody,  sTreeNode1);
 					j--;
@@ -1961,6 +2021,121 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 	}
 }
 
+/*
+ * called after function and loop syntax nodes are created
+ * this function also construct a arrayList of cfg_id and syntaxNode id conversion.
+ */
+void fillParentSyntaxNode(SyntaxTreeNode *parent, SyntaxTreeNode *node, ArrayList *list){
+	assert(node && list);
+	int i;
+	SyntaxTreeNode *tempNode;
+
+	//set the parent of node first
+	node->parent = parent;
+
+	//then recursively set each child (for block node)
+	switch(node->type){
+		case TN_BLOCK:
+			for(i=0;i<al_size(node->u.block.statements);i++){
+				tempNode = al_get(node->u.block.statements, i);
+				fillParentSyntaxNode(node, tempNode, list);
+			}
+			void **pair = createIdPair();
+			pair[0] = (void *)(node->u.block.cfgBlock);
+			pair[1] = (void *)node;
+			al_add(list, (void *)pair);
+			break;
+		case TN_FUNCTION:
+			for(i=0;i<al_size(node->u.func.funcBody);i++){
+				tempNode = al_get(node->u.func.funcBody, i);
+				fillParentSyntaxNode(node, tempNode, list);
+			}
+			break;
+		case TN_WHILE:
+			for(i=0;i<al_size(node->u.loop.loopBody);i++){
+				tempNode = al_get(node->u.loop.loopBody, i);
+				fillParentSyntaxNode(node, tempNode, list);
+			}
+			break;
+		case TN_IF_ELSE:
+			for(i=0;i<al_size(node->u.if_else.if_path);i++){
+				tempNode = al_get(node->u.if_else.if_path, i);
+				fillParentSyntaxNode(node, tempNode, list);
+			}
+			for(i=0;i<al_size(node->u.if_else.else_path);i++){
+				tempNode = al_get(node->u.if_else.else_path, i);
+				fillParentSyntaxNode(node, tempNode, list);
+			}
+			break;
+
+		case TN_GOTO:
+		case TN_RETURN:
+		case TN_RETEXP:
+		case TN_EXP:
+		case TN_DEFVAR:
+		default:
+			break;
+	}
+}
+
+void relinkGotos(SyntaxTreeNode *parent, SyntaxTreeNode *node, ArrayList *list){
+	assert(node && list);
+	int i;
+	SyntaxTreeNode *tempNode;
+	void **tempPair;
+
+	TN_SET_FLAG(node, TN_AFTER_RELINK_GOTO);
+	//then recursively ssearch each child (for block node)
+	switch(node->type){
+		case TN_BLOCK:
+			for(i=0;i<al_size(node->u.block.statements);i++){
+				tempNode = al_get(node->u.block.statements, i);
+				relinkGotos(node, tempNode, list);
+			}
+			break;
+		case TN_FUNCTION:
+			for(i=0;i<al_size(node->u.func.funcBody);i++){
+				tempNode = al_get(node->u.func.funcBody, i);
+				relinkGotos(node, tempNode, list);
+			}
+			break;
+		case TN_WHILE:
+			for(i=0;i<al_size(node->u.loop.loopBody);i++){
+				tempNode = al_get(node->u.loop.loopBody, i);
+				relinkGotos(node, tempNode, list);
+			}
+			break;
+		case TN_IF_ELSE:
+			for(i=0;i<al_size(node->u.if_else.if_path);i++){
+				tempNode = al_get(node->u.if_else.if_path, i);
+				relinkGotos(node, tempNode, list);
+			}
+			for(i=0;i<al_size(node->u.if_else.else_path);i++){
+				tempNode = al_get(node->u.if_else.else_path, i);
+				relinkGotos(node, tempNode, list);
+			}
+			break;
+		case TN_GOTO:
+			tempPair = createIdPair();
+			tempPair[0] = (void *)(node->u.go_to.targetBlock);
+			int index = al_indexOf(list, (void *)tempPair);
+			destroyIdPair((void *)tempPair);
+			if(index>=0){
+				tempPair = (void **)al_get(list, index);
+				node->u.go_to.synTargetBlock = (SyntaxTreeNode *)(tempPair[1]);
+			}else{
+				node->u.go_to.synTargetBlock = NULL;
+				assert(0);
+			}
+			break;
+		case TN_RETURN:
+		case TN_RETEXP:
+		case TN_EXP:
+		case TN_DEFVAR:
+		default:
+			break;
+	}
+}
 
 ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs){
 	int i;
@@ -1969,6 +2144,7 @@ ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *lo
 	BasicBlock *n0;
 	Function *funcStruct1;
 	FuncObjTableEntry *funcObjTableEntry1;
+	SyntaxTreeNode *tempNode;
 
 	ArrayList *syntaxTree;
 	ArrayList *funcObjTable;
@@ -1983,6 +2159,7 @@ ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *lo
 
 	syntaxBlockIDctl = 0;
 	anonfunobjctl = 0;
+	n0=NULL;
 	//make sure flag TMP0 is cleared
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);
@@ -2063,6 +2240,19 @@ ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *lo
 	}
 
 	al_freeWithElements(funcObjTable);
+
+	//fill parent field of each syntax node
+	ArrayList *idPairList = al_newGeneric(AL_LIST_SET, idPairCompare, NULL, destroyIdPair);
+    for(i=0;i<al_size(syntaxTree);i++){
+    	tempNode = al_get(syntaxTree, i);
+    	fillParentSyntaxNode(NULL, tempNode, idPairList);
+    }
+    for(i=0;i<al_size(syntaxTree);i++){
+    	tempNode = al_get(syntaxTree, i);
+    	relinkGotos(NULL, tempNode, idPairList);
+    }
+	al_freeWithElements(idPairList);
+
 	return syntaxTree;
 }
 

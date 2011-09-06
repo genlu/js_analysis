@@ -52,7 +52,7 @@ typedef enum{
 
 	OP_NOT,
 
-// for TN_INC_DEC
+// for INC and DEC (EXP_UN)
 	OP_VINC,
 	OP_VDEC,	
 	OP_INCV,
@@ -176,12 +176,16 @@ typedef enum {
 typedef struct SyntaxTreeNode SyntaxTreeNode;
 
 struct SyntaxTreeNode{
+	int 				id;
 	SyntaxTreeNodeType	type;
 	uint32_t			flags;
+	SyntaxTreeNode		*parent;			//parent SyntaxTreeNode in AST
+	ArrayList 			*predsList;			//alist of predesessor syntaxTreeNode of this node (those end with a goto to this node)
 	union{
 		struct{
-			int 		id;
-			int			old_id;
+
+			int			cfg_id;				//old id is the id# BasicBlock contained in this SyntaxTreeNode when its created
+			BasicBlock 	*cfgBlock;
 			ArrayList 	*statements;		// a list of SyntaxTreeNode
 			//SyntaxStack	*stack;
 		} block;
@@ -191,42 +195,43 @@ struct SyntaxTreeNode{
 			NaturalLoop *loopStruct;
 			BasicBlock	*header;
 			ArrayList 	*loopBody;
+
+			SyntaxTreeNode	*synHeader;	//pointer to the header syntaxTree nnde
 		}loop;
 
 		struct{
 			Function 	*funcStruct;
 			ArrayList 	*funcBody;		// a list of SyntaxTreeNode
+
+			SyntaxTreeNode	*synFuncEntryNode;	//pointer to the func entry syntax tree node
 		} func;
 
 		ExpTreeNode *expNode;
 
 		struct{
-			ExpTreeNode *lval;
-			ExpTreeNode *rval;
-			//void *rval;
-		} assign;
-
-/*		struct{
-			ExpTreeNode *name;
-			Operator 	op;
-		} inc_dec;*/
-
-		struct{
-			BasicBlock *targetBlock;
+			BasicBlock 		*targetBlock;
+			SyntaxTreeNode	*synTargetBlock;	//for continue and break, this point to a parent block it cont/break
 		} go_to;
 
 		struct{
 			ExpTreeNode *cond;
 			// ifeq: if-path->adj_path  else-path->branch_path
 			// ifne: if-path->branch_path  else-path->adj_path
-			SyntaxTreeNode *if_path;
-			SyntaxTreeNode *else_path;
+			ArrayList 	*if_path;				//both are lists of SyntaxTreeNodes
+			ArrayList 	*else_path;
 		} if_else;
+
+		//todo:
+		//switch
 	} u;
 };
 
+
+
 #define	TN_IS_GOTO_BREAK				(1<<0)
 #define TN_IS_GOTO_CONTINUE				(1<<1)
+#define	TN_NOT_SHOW_LABEL				(1<<2)
+#define	TN_AFTER_RELINK_GOTO			(1<<4)
 
 #define	TN_SET_FLAG(tn, flag)		(tn->flags |= flag)
 #define	TN_CLR_FLAG(tn, flag)		(tn->flags &= ~flag)
@@ -270,6 +275,9 @@ typedef struct FuncObjTableEntry{
 
 FuncObjTableEntry *createFuncObjTableEntry(void);
 void destroyFuncObjTableEntry(void *entry);
+
+/*********************************************************************************/
+
 
 /*********************************************************************************/
 

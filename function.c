@@ -255,6 +255,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
 	functionCFGs = al_newGeneric(AL_LIST_SET, FuncEntryBlkIDCompare, NULL, destroyFunctionNode);
 	assert(functionCFGs);
 
+	n0=NULL;
 	//make sure flag TMP0 is cleared
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);
@@ -263,6 +264,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
 			n0 = block;
 	}
 
+	//printf("n0: %lx\n", n0);
 	//printf("n0:%p\n", n0);
 	doSearch(blockList, n0, BBL_FLAG_TMP0, functionCFGs);
 

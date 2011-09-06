@@ -118,6 +118,10 @@ struct BasicBlock{
     int dfn;			//depth-first number
     ArrayList *dominators;		// this an array of BasicBlocks that dominate this block
     ArrayList *dominate;		// this is an array of EDGEs that points to the blocks dominated by this block
+
+    ArrayList *immDomPreds;		//at most one element inthis list!
+    ArrayList *immDomSuccs;
+
     uint32_t flags;
     struct BasicBlock *calltarget; // this is assigned in several cases but not actually used
 };
@@ -155,6 +159,7 @@ typedef struct BlockEdge{
 #define EDGE_IS_CALLSITE			(1<<5)			//this edge connects a script-call block and it's returned to block
 #define EDGE_IS_DOMINATE			(1<<6)			//this edge is an dominate-edge, i.e. in block->dominate and tail dom head
 #define EDGE_IS_COMPLEMENT			(1<<7)			//this edge is added as a complement edge, which is not existed in dynamic trace but should be in static CFG
+#define EDGE_IS_IMM_DOM				(1<<8)
 
 
 #define EDGE_IS_BRANCHED_PATH					(1<<16)
