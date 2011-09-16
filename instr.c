@@ -9,12 +9,13 @@
 
 
 Instruction *InstrCreate(void) {
-    Instruction *new = (Instruction *)malloc(sizeof(Instruction));
+    Instruction *new = (Instruction *)malloc(sizeof(*new));
     new->flags = 0;
     new->addr = 0;;
     new->length = 0;
     new->str = NULL;
     new->objRef = 0;
+    new->opName[0]='\0';
     new->operand.i = -1;
     new->stackUse = 0;
     new->stackUseStart = 0;
@@ -448,6 +449,8 @@ void processEvaledInstr(InstrList *iList){
 				offset = next->addr - entry1->base;
 			}else{
 				next = getInstruction(iList, i+1);
+				printInstruction(instr);
+				assert(instr->str);
 				entry1 = createEvalEntry(instr->str, next->addr);
 				al_add(evalList, entry1);
 				pushOpStack(stack, (void *)offset);

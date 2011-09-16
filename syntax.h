@@ -115,7 +115,7 @@ struct ExpTreeNode{
 		struct{
 			ExpTreeNode *name;
 			int			num_paras;
-			ArrayList 	*parameters;	//this is a list of ExpTreeNode CAUTION: function call with an assignment as parameter is not support
+			ArrayList 	*parameters;	//this is a list of ExpTreeNode
 			BasicBlock 	*funcEntryBlock;
 		} func;
 
@@ -150,6 +150,7 @@ struct ExpTreeNode{
 #define	EXP_IS_BOOL				(1<<3)
 #define EXP_IS_FUNCTION_OBJ		(1<<4)
 #define EXP_IS_PROP_INIT		(1<<5)
+#define EXP_IS_NULL			(1<<6)
 
 
 #define	EXP_SET_FLAG(exp, flag)		(exp->flags |= flag)
@@ -180,7 +181,8 @@ struct SyntaxTreeNode{
 	SyntaxTreeNodeType	type;
 	uint32_t			flags;
 	SyntaxTreeNode		*parent;			//parent SyntaxTreeNode in AST
-	ArrayList 			*predsList;			//alist of predesessor syntaxTreeNode of this node (those end with a goto to this node)
+	ArrayList 			*predsList;			//a list of predesessor syntaxTreeNode of this node
+											//(ONLY for those end with a goto to this node)
 	union{
 		struct{
 
@@ -194,15 +196,16 @@ struct SyntaxTreeNode{
 			ExpTreeNode *cond;
 			NaturalLoop *loopStruct;
 			BasicBlock	*header;
-			ArrayList 	*loopBody;
 
 			SyntaxTreeNode	*synHeader;	//pointer to the header syntaxTree nnde
+			ArrayList 	*loopBody;
+			ArrayList 	*loopBody2;		//this list is merely used for easier check of loop membership
+
 		}loop;
 
 		struct{
 			Function 	*funcStruct;
 			ArrayList 	*funcBody;		// a list of SyntaxTreeNode
-
 			SyntaxTreeNode	*synFuncEntryNode;	//pointer to the func entry syntax tree node
 		} func;
 
@@ -231,7 +234,10 @@ struct SyntaxTreeNode{
 #define	TN_IS_GOTO_BREAK				(1<<0)
 #define TN_IS_GOTO_CONTINUE				(1<<1)
 #define	TN_NOT_SHOW_LABEL				(1<<2)
-#define	TN_AFTER_RELINK_GOTO			(1<<4)
+#define TN_HIDE							(1<<3)	//don't print this entire statement(s) in printSyntaxNode function (used for go_to nodes)
+#define	TN_AFTER_RELINK_GOTO			(1<<4)	//this flag indicates that syntax node id should be uesd in printed label
+#define TN_IS_LOOP_HEADER				(1<<5)
+#define TN_DONE_MOVE					(1<<6)
 
 #define	TN_SET_FLAG(tn, flag)		(tn->flags |= flag)
 #define	TN_CLR_FLAG(tn, flag)		(tn->flags &= ~flag)
@@ -267,11 +273,20 @@ SyntaxStack *createSyntaxStack(void);
 /*********************************************************************************/
 
 typedef struct FuncObjTableEntry{
-	uint32_t 		flag;
-	char 			*funcName;
-	ADDRESS			funcObjAddr;
-	Function		*funcStruct;
+	int				id;
+	uint32_t 		flags;
+	ADDRESS			func_addr;
+	ADDRESS			anonfunobj_instr_addr;
+	char 			*func_name;
+	Function		*func_struct;
+	ArrayList 		*func_objs;
 }FuncObjTableEntry;
+
+#define	FE_IS_ANONFUNOBJ			(1<<0)
+
+#define	FE_SET_FLAG(fe, flag)		(fe->flags |= flag)
+#define	FE_CLR_FLAG(fe, flag)		(fe->flags &= ~flag)
+#define	FE_HAS_FLAG(fe, flag)		(fe->flags & flag)
 
 FuncObjTableEntry *createFuncObjTableEntry(void);
 void destroyFuncObjTableEntry(void *entry);
@@ -298,8 +313,17 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs);
 
 
+SyntaxTreeNode *findAdjacentStatement(ArrayList *syntaxTree, SyntaxTreeNode *node);
+SyntaxTreeNode *findNextStatement(ArrayList *syntaxTree, SyntaxTreeNode *node);
+
+//moving syntaxNode around in syntax tree
+SyntaxTreeNode *insertBefore(ArrayList *syntaxTree, SyntaxTreeNode *node_ins, SyntaxTreeNode *node_target);
+SyntaxTreeNode *insertAfter(ArrayList *syntaxTree, SyntaxTreeNode *node_ins, SyntaxTreeNode *node_target);
+SyntaxTreeNode *moveToBefore(ArrayList *syntaxTree, SyntaxTreeNode *node_move, SyntaxTreeNode *node_target);
+SyntaxTreeNode *moveToAfter(ArrayList *syntaxTree, SyntaxTreeNode *node_move, SyntaxTreeNode *node_target);
 
 
+void transformSyntaxTree(ArrayList *syntaxTree);
 
 
 

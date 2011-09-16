@@ -63,7 +63,7 @@ int main (int argc, char *argv[]) {
     InstrList *iList = NULL;
     int slicing_begin;
     int reducible;
-    int i;
+    int i,j;
 
     if(argc != 3) {
         printf("usage: js_analysis <js_trace file> <slicing_begin>\n");
@@ -149,14 +149,15 @@ int main (int argc, char *argv[]) {
     ArrayList *funcSyntaxTree;
     SyntaxTreeNode *funcSyntaxTreeNode;
 
-    printf("processEvaledInstr\n");
+    printf("processEvaledInstr...\n");
     processEvaledInstr(iList);
 
+    printf("building CFG...\n");
     funcBlockList = buildDynamicCFG(iList);
 
 
-	printBasicBlockList(funcBlockList);
-    printInstrList(iList);
+	//printBasicBlockList(funcBlockList);
+    //printInstrList(iList);
     funcCFGs = buildFunctionCFGs(iList, funcBlockList);
 
 	//printBasicBlockList(funcBlockList);
@@ -171,10 +172,15 @@ int main (int argc, char *argv[]) {
      */
     buildDFSTree(funcBlockList);
 
+	//printBasicBlockList(funcBlockList);
+    //printInstrList(iList);
+
     //process all the AND/OR expressions
     //concatenate involved basicblocks in the order of the address
-    processANDandORExps(iList, funcBlockList);
+    processANDandORExps(iList, funcBlockList, funcCFGs);
 
+
+    //printBasicBlockList(funcBlockList);
 
     /*
      * mark all retreat edges and backedges in given CFG and DFS-Tree
@@ -186,14 +192,32 @@ int main (int argc, char *argv[]) {
     else
     	printf("NOT REDUCIBLE\n");
 
-	printBasicBlockList(funcBlockList);
+	//printBasicBlockList(funcBlockList);
 
     funcLoopList = buildNaturalLoopList(funcBlockList);
     printNaturalLoopList(funcLoopList);
 
+
+
     //printInstrList(iList);
+    //printBasicBlockList(funcBlockList);
     printf("Building syntax tree...\n");
     funcSyntaxTree = buildSyntaxTree(iList, funcBlockList, funcLoopList, funcCFGs);
+
+	//print all function info
+	Function *func;
+	for(i=0;i<al_size(funcCFGs);i++){
+		func = al_get(funcCFGs, i);
+		printf("func %s\t", func->funcName);
+		for(j=0;j<al_size(func->funcBody);j++){
+			printf("%d  ",((BasicBlock*)al_get(func->funcBody, j))->id);
+		}
+		printf("\n");
+	}
+
+    printf("\nTransform syntax tree...\n");
+    transformSyntaxTree(funcSyntaxTree);
+
     printf("\nRecovered Source Code:\n");
     for(i=0;i<al_size(funcSyntaxTree);i++){
     	funcSyntaxTreeNode = al_get(funcSyntaxTree, i);

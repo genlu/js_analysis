@@ -195,6 +195,7 @@ void concatCallSiteBlocks(BlockEdge *edge){
 	block1 = edge->tail;
 	block2 = edge->head;
 	block1->type = block2->type;
+	block1->lastInstr = block2->lastInstr;
 	al_remove(block1->succs, edge);
 	for(i=0;i<al_size(block2->succs);i++){
 		e = al_get(block2->succs, i);
@@ -296,6 +297,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
 						}
 					}
 					destroyBlockEdge(edge);
+					edge=NULL;
 					change++;
 					break;
 				}

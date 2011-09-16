@@ -147,7 +147,7 @@ void printBasicBlock(BasicBlock *block) {
 		  printf("ERROR: unknown block type");
   }
   printf("\n");
-  printf("Last Instruction:\t%s\n", block->lastInstr->opName);
+  printf("Last Instruction:\t%lx  %s\n", block->lastInstr->addr, block->lastInstr->opName);
 
 
   /********************* PREDECESSORS ********************/
@@ -345,11 +345,15 @@ void destroyBasicBlock(void *block) {
 	if(bbl->dominate)
 		al_freeWithElements(bbl->dominate);
 
-	if(bbl->immDomPreds)
+	if(bbl->immDomPreds){
 		al_freeWithElements(bbl->immDomPreds);
+		bbl->immDomPreds=NULL;
+	}
 
-	if(bbl->immDomSuccs)
+	if(bbl->immDomSuccs){
 		al_freeWithElements(bbl->immDomSuccs);
+		bbl->immDomSuccs=NULL;
+	}
 
 	bbl->id = -1;
 
@@ -724,6 +728,22 @@ void printDomList(ArrayList *blockList){
 	}
 }
 
+void printImmDomList(ArrayList *blockList){
+	int i,j;
+	BasicBlock *b1;
+	BlockEdge *e;
+	printf("\nImm Dom List for each block\n");
+	for(i=0;i<al_size(blockList);i++){
+		b1 = (BasicBlock *)al_get(blockList, i);
+		printf(" blocks immediately dominated by block %3d:\t", b1->id);
+		for(j=0;j<al_size(b1->immDomSuccs);j++){
+			e = (BlockEdge *)al_get(b1->immDomSuccs, j);
+			printf("\t%d\t", e->head->id);
+		}
+		printf("\n");
+	}
+}
+
 
 /*
  * return true if block1 dominate block2 in CFG
@@ -796,18 +816,22 @@ void findDominators(ArrayList *blockList){
 		if(block->dominators){
 			al_free(block->dominators);
 		}
+		//printf("block#%d\t", block->id);
 		//block 0 is garanteed to be the entry node
 		if(BBL_HAS_FLAG(block, BBL_IS_ENTRY_NODE)){
 			//assert(BBL_HAS_FLAG(block, BBL_IS_ENTRY_NODE));
+			//printf("entry\n");
 			block->dominators = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
 			al_add(block->dominators, (void *)block);
 		}
 		else if(al_size(block->preds)==0){
 			assert(BBL_HAS_FLAG(block, BBL_IS_FUNC_ENTRY));
+			//printf("func_entry\n");
 			block->dominators = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
 			al_add(block->dominators, (void *)block);
 		}
 		else{
+			//printf("reg\n");
 			block->dominators = al_clone(blockList);
 			block->dominators->al_type = AL_LIST_SET;
 			block->dominators->al_print = NULL;
@@ -840,7 +864,7 @@ void findDominators(ArrayList *blockList){
 		}//end for-loop
 	}while(change);
 
-	printDominators(blockList);
+	//printDominators(blockList);
 
 	//calculate block->dominate
 	for(i=0;i<al_size(blockList);i++){
@@ -865,16 +889,19 @@ void findDominators(ArrayList *blockList){
 		}
 	}
 
-	printDomList(blockList);
+	//printDomList(blockList);
 
 	//construct dom-tree
 	for(i=0;i<al_size(blockList);i++){
 		block = (BasicBlock *)al_get(blockList,i);
 		if(block->immDomPreds){
-			al_freeWithElements(block->immDomPreds);
+			//al_freeWithElements(block->immDomPreds);
+			al_free(block->immDomPreds);
+			block->immDomPreds=NULL;
 		}
 		if(block->immDomSuccs){
 			al_freeWithElements(block->immDomSuccs);
+			block->immDomSuccs=NULL;
 		}
 		block->immDomPreds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
 		block->immDomSuccs = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
@@ -905,10 +932,9 @@ void findDominators(ArrayList *blockList){
 			EDGE_SET_FLAG(domEdge, EDGE_IS_IMM_DOM);
 			al_add(block->immDomPreds, domEdge);
 			al_add(block2->immDomSuccs, domEdge);
-
-
 		}
 	}
+	//printImmDomList(blockList);
 }
 
 
@@ -1281,15 +1307,41 @@ void checkExpValidity(InstrList *iList, ArrayList *blockList, uint32_t flag, uin
 	}
 }
 
+
+BasicBlock *findBasicBlockInFunctionCFGs(ArrayList *funcCFGs, int id, Function **ret_func){
+	int i,j;
+	BasicBlock *block, *ret;
+	Function *func;
+	assert(funcCFGs && id>=0);
+	ret = NULL;
+	printf("searching for block#%d..\t", id);
+
+	for(i=0;i<al_size(funcCFGs);i++){
+		func = al_get(funcCFGs, i);
+		for(j=0;j<al_size(func->funcBody);j++){
+			block = (BasicBlock*)al_get(func->funcBody, j);
+			if(block->id==id){
+				printf("found!\n");
+				ret = block;
+				*ret_func = func;
+				printf("%lx\n", *ret_func);
+				return ret;
+			}
+		}
+	}
+	printf("not found!\n");
+	return ret;
+}
+
 /*
  * process all the AND/OR expressions
  * concatenate involved basicblocks in the order of the address
  */
-void processANDandORExps(InstrList *iList, ArrayList *blockList){
+void processANDandORExps(InstrList *iList, ArrayList *blockList, ArrayList *funcCFGs){
 	assert(blockList);
 
 	int i,j;
-	BasicBlock *startBlock, *endBlock, *tempBlock;
+	BasicBlock *startBlock, *endBlock, *tempBlock, *tempBlock2;
 
 	ArrayList *concatList;
 
@@ -1373,7 +1425,7 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 				newBlock->count = tempBlock->count;
 			}
 
-			newBlock->flags = newBlock->flags || tempBlock->flags;
+			newBlock->flags = newBlock->flags | tempBlock->flags;
 
 			//process each instruction
 			for(j=0;j<al_size(tempBlock->instrs);j++){
@@ -1398,8 +1450,15 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 				al_add(blockList,newBlock);
 			}
 		}
+
+		Function *func = NULL;
 		for(i=0;i<listSize;i++){
 			tempBlock = (BasicBlock *)al_get(concatList, i);
+			tempBlock2 = findBasicBlockInFunctionCFGs(funcCFGs, tempBlock->id, &func);
+			printf("%lx\n", func);
+			assert(tempBlock2);assert(func);
+			al_remove(func->funcBody, (void *)tempBlock2);
+			assert(tempBlock == tempBlock2);
 			if(i==0){
 				destroyBasicBlockForConCat(tempBlock, 1);
 			}else if(i==listSize-1){
@@ -1409,6 +1468,9 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 			}
 			tempBlock=NULL;
 		}
+		assert(func);
+		al_add(func->funcBody, newBlock);
+
 		al_free(concatList);
 		concatList = NULL;
 
@@ -1418,7 +1480,7 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList){
 			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP0);
 			BBL_CLR_FLAG(tempBlock, BBL_FLAG_TMP1);
 		}*/
-		printBasicBlockList(blockList);
+		//printBasicBlockList(blockList);
 
 	    //XXX memory leakage (dom edges)
 	    findDominators(blockList);

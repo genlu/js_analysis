@@ -22,6 +22,7 @@ int blockIdCompare(void *i1, void *i2);
 ArrayList*	findLeaders(InstrList *iList);
 void 		markBasicBlockBoundary(InstrList *iList, ArrayList *leaders);
 BasicBlock*	createBasicBlock(void);
+void destroyBasicBlock(void *block);
 void printBasicBlock(BasicBlock *block);
 
 BlockEdge *createBlockEdge(void);
@@ -50,6 +51,6 @@ BasicBlock *isBlockTheLoopHeader(NaturalLoop *loop, int block);
 NaturalLoop *findSmallestUnprocessedLoop(ArrayList *loopList, uint32_t flag);
 
 
-void processANDandORExps(InstrList *iList, ArrayList *blockList);
+void processANDandORExps(InstrList *iList, ArrayList *blockList, ArrayList *funcCFGs);
 
 #endif /* _CFG_H */

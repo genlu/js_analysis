@@ -42,6 +42,12 @@ Instruction *GetInstrFromText(char *buffer){
 	unsigned long addr;
 	long id;
 	double number;
+	int fun_int;
+
+	static bool 	ignore = false;
+	static ADDRESS 	next_addr = 0;
+	//ignore xor next_addr = 0
+	assert((ignore==false && next_addr==0) || (ignore==true && next_addr>0));
 
 	lineno += 1;
 
@@ -65,6 +71,15 @@ Instruction *GetInstrFromText(char *buffer){
 	//check for program counter
 	if((addr=atoh(tok)) != 0) {
 		new->addr = addr;
+		if(ignore==false || (ignore==true && new->addr==next_addr)){
+			ignore = false;
+			next_addr = 0;
+		}
+		else{
+			fprintf(stderr, "IGNORE: %lx %s\n", new->addr, new->opName);
+			InstrDestroy(new);
+			return NULL;
+		}
 		//fprintf(stderr, "%lx\t", addr);
 	}else{
 		fprintf(stderr, "ERROR [line %d]: malformed trace [at PC (%s)] \n", lineno, tok);
@@ -100,6 +115,37 @@ Instruction *GetInstrFromText(char *buffer){
 			new->length = atoi(tok);
 			//fprintf(stderr, "#LEN: %d\t", new->length);
 		}
+		else if(!strcmp(tok, "#FUN_INT:")){
+			tok=strtok_r(NULL, " \t\n", &tokSave);
+			if(!tok){
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at LEN] \n", lineno);
+				abort();
+			}
+			fun_int = atoi(tok);
+			assert(fun_int==1 || fun_int==0);
+			if(fun_int==1){
+				INSTR_SET_FLAG(new, INSTR_IS_SCRIPT_INVOKE);
+			}else{
+				INSTR_SET_FLAG(new, INSTR_IS_NATIVE_INVOKE);
+				assert(new->length && new->addr);
+				ignore = true;
+				next_addr = new->addr + new->length;
+			}
+			//fprintf(stderr, "#LEN: %d\t", new->length);
+		}
+		else if(!strcmp(tok, "#FILE:")){
+			tok=strtok_r(NULL, " \t\n", &tokSave);
+			if(!tok){
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at FILE] \n", lineno);
+				abort();
+			}
+			/* TODO
+			(char *)malloc(strlen(tok)+1);
+			assert(new->str);
+			memcpy(new->str, tok, strlen(tok)+1);
+			*/
+		}
+
 		else if(!strcmp(tok, "#S_USE:")){
 			tok=strtok_r(NULL, " \t\n", &tokSave);
 			if(!tok){
@@ -362,9 +408,10 @@ Instruction *GetInstrFromText(char *buffer){
 				abort();
 			}
 			if(*tok == '\0'){
-				tok[0] = ' ';
+				tok[0] = ' ';	//maybe should use ''
 				tok[1] = '\0';
-				printf("#OPND_S: empty string! @line %d\n", lineno);
+				printf("instr addr: %lx\t#OPND_S: empty string! @line %d\n", new->addr, lineno);
+
 			}
 			new->operand.s = (char *)malloc(strlen(tok)+1);
 			assert(new->operand.s);
@@ -376,7 +423,7 @@ Instruction *GetInstrFromText(char *buffer){
 				continue;
 			}
 			//hack, we know #js_CompileScript: always the last in trace entry if appeared, and there's no '\0', but a '\t\n' at the end
-			//so to acoomodate entire string (with space, etc in between), we get to the end of line
+			//so to acommodate entire string (with space, etc in between), we get to the end of line
 			//and substitute '\t\n' with '\0'
 			tok = tokSave;
 			*(tok + strlen(tok) -2)='\0';
@@ -388,7 +435,7 @@ Instruction *GetInstrFromText(char *buffer){
 			if(*tok == '\0'){
 				tok[0] = ' ';
 				tok[1] = '\0';
-				printf("#OPND_S: empty string! @line %d\n", lineno);
+				printf("instr addr: %lx\t#OPND_S: empty string! @line %d\n", new->addr, lineno);
 			}
 			new->str = (char *)malloc(strlen(tok)+1);
 			assert(new->str);
