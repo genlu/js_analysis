@@ -345,6 +345,8 @@ void printExpTreeNode(ExpTreeNode *node){
 			printf("%f", node->u.const_value_double);
 		}else if(EXP_HAS_FLAG(node, EXP_IS_STRING)){
 			printf("\"%s\"", node->u.const_value_str);
+		}else if(EXP_HAS_FLAG(node, EXP_IS_REGEXP)){
+			printf("%s", node->u.const_value_str);
 		}else if(EXP_HAS_FLAG(node, EXP_IS_BOOL)){
 			printf("%s", (node->u.const_value_bool==true)?"true":"false");
 		}
@@ -944,6 +946,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_ONE:
 		case JSOP_STRING:
 		case JSOP_DOUBLE:
+		case JSOP_REGEXP:
 		case JSOP_NULL:
 		case JSOP_TRUE:
 		case JSOP_FALSE:
@@ -972,6 +975,13 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				memcpy(str, instr->operand.s, strlen(instr->operand.s)+1);
 				expTreeNode1->u.const_value_str = str;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_STRING);
+			}
+			else if(instr->opCode==JSOP_REGEXP){
+				str = (char *)malloc(strlen(instr->operand.s)+1);
+				assert(str);
+				memcpy(str, instr->operand.s, strlen(instr->operand.s)+1);
+				expTreeNode1->u.const_value_str = str;
+				EXP_SET_FLAG(expTreeNode1, EXP_IS_REGEXP);
 			}
 			else if(instr->opCode==JSOP_TRUE){
 				expTreeNode1->u.const_value_bool = true;
@@ -1720,7 +1730,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_POPV:
 		case JSOP_LINENO:
 		case JSOP_GROUP:
+			break;
 		default:
+			assert(0);
 #if DEBUG
 			printf("-- ignore block#%d: %lx %s\n", instr->inBlock->id, instr->addr, instr->opName);
 #endif

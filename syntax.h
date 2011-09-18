@@ -150,7 +150,8 @@ struct ExpTreeNode{
 #define	EXP_IS_BOOL				(1<<3)
 #define EXP_IS_FUNCTION_OBJ		(1<<4)
 #define EXP_IS_PROP_INIT		(1<<5)
-#define EXP_IS_NULL			(1<<6)
+#define EXP_IS_NULL				(1<<6)
+#define EXP_IS_REGEXP			(1<<7)
 
 
 #define	EXP_SET_FLAG(exp, flag)		(exp->flags |= flag)

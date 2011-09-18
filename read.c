@@ -408,7 +408,7 @@ Instruction *GetInstrFromText(char *buffer){
 				abort();
 			}
 			if(*tok == '\0'){
-				tok[0] = ' ';	//maybe should use ''
+				tok[0] = '\0';	//maybe should use ''
 				tok[1] = '\0';
 				printf("instr addr: %lx\t#OPND_S: empty string! @line %d\n", new->addr, lineno);
 
