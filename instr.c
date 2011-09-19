@@ -304,10 +304,15 @@ void labelInstructionList(InstrList *iList){
 		}
 		// if s is a invocation instr
 		if(isInvokeInstruction(iList, instr)){
-			if(!isNativeInvokeInstruction(iList, instr)){
+			if(instr->opCode==JSOP_EVAL){
 				INSTR_SET_FLAG(instr, INSTR_IS_SCRIPT_INVOKE);
+			}
+			else if(!isNativeInvokeInstruction(iList, instr)){
+				//printInstruction(instr);
+				assert(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE));
 			}else{
-				INSTR_SET_FLAG(instr, INSTR_IS_NATIVE_INVOKE);
+				//printInstruction(instr);
+				assert(INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE));
 			}
 		}
 		if(is1WayBranch(iList, instr)){
@@ -457,15 +462,10 @@ void processEvaledInstr(InstrList *iList){
 				offset = 0;
 			}
 		}else if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode==JSOP_CALL ||instr->opCode==JSOP_NEW )){
-/*			if(instr->addr_origin != 0x219a464){*/
-				pushOpStack(stack, (void *)offset);
-				offset = 0;
-			/*}else{
-				INSTR_SET_FLAG(instr, INSTR_IS_NATIVE_INVOKE);
-			}*/
+			pushOpStack(stack, (void *)offset);
+			offset = 0;
 		}else if(instr->opCode==JSOP_STOP || instr->opCode==JSOP_RETURN ){
-			if(instr->addr!=0x219a7af)
-				offset = (ADDRESS)popOpStack(stack);
+			offset = (ADDRESS)popOpStack(stack);
 		}else
 			continue;
 	}

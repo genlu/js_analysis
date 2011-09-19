@@ -97,14 +97,6 @@ SlicingState *initSlicingState(InstrList *iList, int order){
 			pushOpStack(state->stack, (void *)newFrame);
 		}
 		// if s is a invocation instr
-/*		if(isInvokeInstruction(iList, instr)){
-			if(!isNativeInvokeInstruction(iList, instr)){
-				INSTR_SET_FLAG(instr, INSTR_IS_SCRIPT_INVOKE);
-				InstrListDestroy((InstrList *)popOpStack(state->stack),0);
-			}else{
-				INSTR_SET_FLAG(instr, INSTR_IS_NATIVE_INVOKE);
-			}
-		}*/
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
 			InstrListDestroy((InstrList *)popOpStack(state->stack),0);
 		}
@@ -261,14 +253,10 @@ void markUDchain(InstrList *iList, SlicingState *state){
 		// if s is a invocation instr
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE)){
 			if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
-				//INSTR_SET_FLAG(instr, INSTR_IS_SCRIPT_INVOKE);
 				printf("script invoke #%d\n", instr->order);
 				state->lastFrame = (InstrList *)popOpStack(state->stack);
 				assert(state->lastFrame);
 			}
-/*			else{
-				INSTR_SET_FLAG(instr, INSTR_IS_NATIVE_INVOKE);
-			}*/
 		}else{
 			if(state->lastFrame!=NULL){
 				InstrListDestroy(state->lastFrame,0);
@@ -283,7 +271,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 #if INCLUDE_CTRL_DEP
 		// calculate control dependency of i
 		//1. inter-procedural control dependency (ignore 'eval')
-		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && strcmp(instr->opName,"eval")){
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && instr->opCode!=JSOP_EVAL){
 			assert(state->lastFrame);
 			if(InstrListLength(state->lastFrame)>0){
 				printf("adding %d as a control dep(invoke)\n", instr->order);

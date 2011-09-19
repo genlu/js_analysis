@@ -55,8 +55,8 @@ void test(void){
 }
 
 #define BASIC	0
-#define	FUNCS	1
-#define SLICE	BASIC && 0
+#define	DECOMPILE	1
+#define SLICE	0
 
 int main (int argc, char *argv[]) {
 
@@ -138,7 +138,7 @@ int main (int argc, char *argv[]) {
 
 	//////////////////////////////////////////////////////////////////////////////////
 
-#if FUNCS
+#if DECOMPILE
     PrintInfo(1);
     /*
      * create CFGs for functions
@@ -238,7 +238,63 @@ int main (int argc, char *argv[]) {
      * create CFG for slicing
      */
 #if SLICE
+
     PrintInfo(2);
+
+    ArrayList *blockList = NULL;
+    ArrayList *loopList;
+
+
+    ArrayList *sliceSyntaxTree;
+    SyntaxTreeNode *sliceSyntaxTreeNode;
+
+    ArrayList *sliceBlockList = NULL;
+    ArrayList *sliceLoopList;
+    InstrList *sliceList;
+    ArrayList *sliceFuncCFGs;
+
+    printf("processEvaledInstr...\n");
+    processEvaledInstr(iList);
+
+    /*
+     * Build dynamic CFG.
+     * (No edges are marked yet)
+     */
+    blockList = buildDynamicCFG(iList);
+
+    /*
+     * find dominators for each node (basicBlock)
+     */
+    findDominators(blockList);
+
+    /*
+     * build a DFS-Tree on CFG
+     * (tree edges are marked)
+     */
+    buildDFSTree(blockList);
+
+    /*
+     * mark all retreat edges and backedges in given CFG and DFS-Tree
+     * and determin if this CFG is reducible.
+     */
+    reducible = findBackEdges(blockList);
+    if(reducible)
+    	printf("REDUCIBLE\n");
+    else
+    	printf("NOT REDUCIBLE\n");
+
+   // printBasicBlockList(blockList);
+
+    loopList = buildNaturalLoopList(blockList);
+   // printNaturalLoopList(loopList);
+
+
+
+    destroyNaturalLoopList(loopList);
+	//destroyBasicBlockList(blockList);
+
+
+
 
 	/*
 	 * do the dynamic slicing based on instruction specified by 'slicing_begin'
@@ -250,18 +306,6 @@ int main (int argc, char *argv[]) {
     //printSlicingState(state);
     checkSlice(iList);
 
-    //printInstrList(iList);
-
-    ArrayList *sliceSyntaxTree;
-    SyntaxTreeNode *sliceSyntaxTreeNode;
-
-    ArrayList *sliceBlockList = NULL;
-    ArrayList *sliceLoopList;
-    InstrList *sliceList;
-    ArrayList *sliceFuncCFGs;
-    printf("processEvaledInstr\n");
-    processEvaledInstr(iList);
-    //printInstrList(iList);
     printf("InstrListClone\n");
     sliceList = InstrListClone(iList, INSTR_IN_SLICE);
 

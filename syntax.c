@@ -362,7 +362,7 @@ void printExpTreeNode(ExpTreeNode *node){
 		for(i=node->u.func.num_paras;i>0;i--){
 			expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
 			printExpTreeNode(expNode);
-			if(i)
+			if(i>1)
 				printf(", ");
 		}
 		printf(" )");
@@ -1721,17 +1721,20 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
-			// deffun will not create any syntax related nodes, just try to set up funcObjTable
+			// deffun/closure will not create any syntax related nodes, just try to set up funcObjTable
 		case JSOP_DEFFUN:
 		case JSOP_CLOSURE:
 
 		case JSOP_BINDNAME:
+		case JSOP_ENDINIT:
+		case JSOP_NOP:
 		case JSOP_POP:
 		case JSOP_POPV:
 		case JSOP_LINENO:
 		case JSOP_GROUP:
 			break;
 		default:
+			printf("unhandled JSOP: %s\n", instr->opName);
 			assert(0);
 #if DEBUG
 			printf("-- ignore block#%d: %lx %s\n", instr->inBlock->id, instr->addr, instr->opName);
