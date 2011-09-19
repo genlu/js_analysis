@@ -202,15 +202,20 @@ void markUDchain(InstrList *iList, SlicingState *state){
 	INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
 
 	/*
-	 * to make decompiler work correctly, we have to include all remaining instr in this block into the slice
-	 * but we DON'T use them to do the slicing!
+	 * to make decompiler work correctly, we have to
+	 * include all remaining none branch instrs in this
+	 * block into the slice but we DON'T use them to do the slicing!
 	 */
 	int tempInt = *i;
 	//while(!INSTR_HAS_FLAG(instr, INSTR_IS_BBL_END)){
 	while(!INSTR_HAS_FLAG(instr, INSTR_IS_BBL_END)){
 		//printf("lsls: %d\n", tempInt);
 		instr=getInstruction(iList,++tempInt);
-		INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
+		if(!isBranch(iList, instr) && !isInvokeInstruction(iList, instr)){
+			INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
+		}else{
+			break;
+		}
 	}
 
 	instr=getInstruction(iList,(*i));

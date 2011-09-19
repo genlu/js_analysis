@@ -2301,6 +2301,68 @@ SyntaxTreeNode *findNextStatement(ArrayList *syntaxTree, SyntaxTreeNode *node){
 	return tempSynNode;
 }
 
+SyntaxTreeNode *isStatementsEndWithGoto(ArrayList *syntaxTree, SyntaxTreeNode *node){
+	int i;
+	SyntaxTreeNode *ret, *tempNode;
+
+	assert(syntaxTree && node);
+	ret=NULL;
+	switch(node->type){
+	case TN_GOTO:
+		ret = node;
+		break;
+	case TN_BLOCK:
+		i = al_size(node->u.block.statements);
+		tempNode = al_get(node->u.block.statements, i-1);
+		ret = isStatementsEndWithGoto(syntaxTree, tempNode);
+		break;
+	case TN_WHILE:
+	case TN_IF_ELSE:
+	case TN_EXP:
+	case TN_DEFVAR:
+	case TN_FUNCTION:
+	case TN_RETURN:
+	case TN_RETEXP:
+		ret = NULL;
+		break;
+	default:
+		assert(0);
+		break;
+	}	//end-switch
+	return ret;
+}
+
+/*
+ * return the last statement in a given node, if node is a block node
+ * else, return the node itself.
+ * NOTE: IF_ELSE node is treated as a non-block node, since you cannot say which statement is THE final statement due to the 2 way choice
+ */
+SyntaxTreeNode *lastStatementInBlock(SyntaxTreeNode *node){
+	assert(node);
+	SyntaxTreeNode *ret, *tempNode1;
+
+	switch(node->type){
+	case TN_BLOCK:
+		tempNode1 = al_get(node->u.block.statements, al_size(node->u.block.statements)-1);
+		ret = lastStatementInBlock(tempNode1);
+		break;
+	case TN_WHILE:
+		tempNode1 = al_get(node->u.loop.loopBody, al_size(node->u.loop.loopBody)-1);
+		ret = lastStatementInBlock(tempNode1);
+		break;
+	case TN_FUNCTION:
+	case TN_IF_ELSE:
+	case TN_GOTO:
+	case TN_RETURN:
+	case TN_RETEXP:
+	case TN_EXP:
+	case TN_DEFVAR:
+	default:
+		ret = node;
+		break;
+	}//end switch
+	return ret;
+}
 
 /*
  * this function returns the inner-most loop node which this node belongs to
@@ -2426,6 +2488,31 @@ SyntaxTreeNode *moveToAfter(ArrayList *syntaxTree, SyntaxTreeNode *node_move, Sy
 
 	//insert node_move immediately after node_target (which meansthey have the SAME parent)
 	return insertAfter(syntaxTree, tempNode, node_target);
+}
+
+/*
+ * CAUTION: if node_remove is a goto, the successor's preds # is not changed by this function
+ */
+SyntaxTreeNode *removeSyntaxTreeNode(ArrayList *syntaxTree, SyntaxTreeNode *node_remove){
+	int index_remove;
+	ArrayList *list_remove;
+	SyntaxTreeNode *tempNode;
+	assert(syntaxTree && node_remove);
+
+	index_remove = -1;
+	list_remove = NULL;
+	tempNode = NULL;
+
+	//find the location of node_move inits parent's list
+	list_remove = findSyntaxTreeNodeLocation(syntaxTree, node_remove, &index_remove);
+	assert(list_remove);
+
+	//remove node_move from its parent
+	tempNode = (SyntaxTreeNode *)al_removeAt(list_remove, index_remove);
+	assert(tempNode->id==node_remove->id);
+	tempNode->parent=NULL;
+
+	return tempNode;
 }
 
 
@@ -2809,40 +2896,6 @@ bool isGotoTargetInThisLoop(SyntaxTreeNode *gotoNode, SyntaxTreeNode *whileNode)
 	return ret;
 }
 
-/*
- * return the last statement in a given node, if node is a block node
- * else, return the node itself.
- * NOTE: IF_ELSE node is treated as a non-block node, since you cannot say which statement is THE final statement due to the 2 way choice
- */
-SyntaxTreeNode *lastStatementInBlock(SyntaxTreeNode *node){
-	assert(node);
-	SyntaxTreeNode *ret, *tempNode1;
-
-	switch(node->type){
-	case TN_BLOCK:
-		tempNode1 = al_get(node->u.block.statements, al_size(node->u.block.statements)-1);
-		ret = lastStatementInBlock(tempNode1);
-		break;
-	case TN_FUNCTION:
-		tempNode1 = al_get(node->u.func.funcBody, al_size(node->u.func.funcBody)-1);
-		ret = lastStatementInBlock(tempNode1);
-		break;
-	case TN_WHILE:
-		tempNode1 = al_get(node->u.loop.loopBody, al_size(node->u.loop.loopBody)-1);
-		ret = lastStatementInBlock(tempNode1);
-		break;
-	case TN_IF_ELSE:
-	case TN_GOTO:
-	case TN_RETURN:
-	case TN_RETEXP:
-	case TN_EXP:
-	case TN_DEFVAR:
-	default:
-		ret = node;
-		break;
-	}//end switch
-	return ret;
-}
 
 /*
  * Move block to after its only GOTO predecessor.
@@ -2854,9 +2907,9 @@ SyntaxTreeNode *lastStatementInBlock(SyntaxTreeNode *node){
 bool trans_goto_helper_move(ArrayList *syntaxTree, SyntaxTreeNode *node){
 
 	assert(node && syntaxTree);
-	int i,j;
+	int i,j,k;
 	bool flag;
-	SyntaxTreeNode *tempNode1, *tempNode2, *tempNode3;
+	SyntaxTreeNode *tempNode1, *tempNode2, *tempNode3, *tempNode4;
 	ArrayList *tempList1, *tempList2;
 
 
@@ -2885,16 +2938,34 @@ bool trans_goto_helper_move(ArrayList *syntaxTree, SyntaxTreeNode *node){
 				assert(tempNode2->parent == tempNode1->parent);
 				return true;
 			}
-			else{
-				printf("blk#%d deon't belong to the blk#%d's loop, stop moving\n", node->id, tempNode1->id);
+			//check if node ends with the same goto as the goto after while
+			else if(tempNode2!=NULL){
+				//get the goto node at the end of node (if there's one)
+				tempNode4 = isStatementsEndWithGoto(syntaxTree, node);
+				//get statement after while-loop
+				tempList1 = findSyntaxTreeNodeLocation(syntaxTree, tempNode2, &k);
+				if(tempNode4 && k<al_size(tempList1)-1){
+					tempNode3 = (SyntaxTreeNode *)al_get(tempList1, k+1);
+					assert(tempNode4->type==TN_GOTO);
+					if(tempNode3->type==TN_GOTO &&
+							tempNode3->u.go_to.synTargetBlock->id == tempNode4->u.go_to.synTargetBlock->id){
+						printf("move blk#%d to after blk%d\n", node->id, tempNode1->id);
+						tempNode2 = moveToAfter(syntaxTree, node, tempNode1);
+						assert(tempNode2->parent == tempNode1->parent);
+						return true;
+					}
+				}
 			}
+			printf("blk#%d deon't belong to the blk#%d's loop, and can't move into the loop, stop moving\n",
+					node->id, tempNode1->id);
+
 		}
 		else{
 			printf("succ of blk#%d (blk#%d) is already in place\n", tempNode1->id, node->id);
 		}
 	}
 
-	//then recursively ssearch each child (for block node)
+	//then recursively search each child (for block node)
 	flag=false;
 	switch(node->type){
 	case TN_BLOCK:
@@ -3032,6 +3103,90 @@ bool trans_goto_helper_continue(ArrayList *syntaxTree, SyntaxTreeNode *node){
 	return flag;
 }
 
+//TODO:
+bool trans_goto_helper_break(ArrayList *syntaxTree, SyntaxTreeNode *node){
+
+	assert(node && syntaxTree);
+	int i;
+	bool flag;
+	SyntaxTreeNode *tempNode1;
+
+	//then recursively search each child (for block node)
+	flag=false;
+	switch(node->type){
+	case TN_GOTO:
+		tempNode1 = syntaxTreeNodeInLoop(node);
+		if(tempNode1){
+			if(!isGotoTargetInThisLoop(node, tempNode1)){
+				printf("goto #%d target #%d NOT in the same loop\n", node->id, node->u.go_to.synTargetBlock->id);
+			}else{
+				printf("goto #%d target #%d in the same loop\n",  node->id, node->u.go_to.synTargetBlock->id);
+			}
+		}else{
+			printf("goto #%d (target#%d) is not in a loop\n",  node->id, node->u.go_to.synTargetBlock->id);
+		}
+		if(TN_HAS_FLAG(node, TN_IS_GOTO_CONTINUE))
+			break;
+		if(node->u.go_to.synTargetBlock->type==TN_WHILE){
+			tempNode1 = syntaxTreeNodeInLoop(node);
+			//if this is a goto to a different loop-header (which node doesn't belong to)
+			if(tempNode1==NULL || tempNode1->id!=node->u.go_to.synTargetBlock->id)
+				break;
+			TN_SET_FLAG(node, TN_IS_GOTO_CONTINUE);
+			al_remove(node->u.go_to.synTargetBlock->predsList, (void *)node);
+			flag = true;
+		}
+		break;
+
+	case TN_BLOCK:
+		for(i=0;i<al_size(node->u.block.statements);i++){
+			tempNode1 = al_get(node->u.block.statements, i);
+			flag=trans_goto_helper_continue(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_FUNCTION:
+		for(i=0;i<al_size(node->u.func.funcBody);i++){
+			tempNode1 = al_get(node->u.func.funcBody, i);
+			flag=trans_goto_helper_continue(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_WHILE:
+		for(i=0;i<al_size(node->u.loop.loopBody);i++){
+			tempNode1 = al_get(node->u.loop.loopBody, i);
+			flag=trans_goto_helper_continue(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_IF_ELSE:
+		for(i=0;i<al_size(node->u.if_else.if_path);i++){
+			tempNode1 = al_get(node->u.if_else.if_path, i);
+			flag=trans_goto_helper_continue(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		if(flag)
+			break;
+		for(i=0;i<al_size(node->u.if_else.else_path);i++){
+			tempNode1 = al_get(node->u.if_else.else_path, i);
+			flag=trans_goto_helper_continue(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_RETURN:
+	case TN_RETEXP:
+	case TN_EXP:
+	case TN_DEFVAR:
+	default:
+		break;
+	}//end switch
+	return flag;
+}
 
 bool trans_goto(ArrayList *syntaxTree){
 	int i;
@@ -3049,6 +3204,7 @@ bool trans_goto(ArrayList *syntaxTree){
 			tempNode = al_get(syntaxTree, i);
 			change = change || trans_goto_helper_move(syntaxTree, tempNode);
 			change = change || trans_goto_helper_continue(syntaxTree, tempNode);
+			//change = change || trans_goto_helper_break(syntaxTree, tempNode);
 			if(change)	//do it over if we made a movement, to avoid list length issue
 				break;
 		}
@@ -3218,6 +3374,88 @@ bool trans_while(ArrayList *syntaxTree){
 	return ret;
 }
 
+bool trans_if_else_helper_commGotos(ArrayList *syntaxTree, SyntaxTreeNode *node){
+
+
+	assert(node && syntaxTree);
+	int i;
+	bool flag;
+	SyntaxTreeNode *tempNode1, *tempNode2;
+
+	flag=false;
+	switch(node->type){
+	case TN_FUNCTION:
+		for(i=0;i<al_size(node->u.func.funcBody);i++){
+			tempNode1 = al_get(node->u.func.funcBody, i);
+			flag=trans_if_else_helper_commGotos(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_BLOCK:
+		for(i=0;i<al_size(node->u.block.statements);i++){
+			tempNode1 = al_get(node->u.block.statements, i);
+			flag=trans_if_else_helper_commGotos(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_WHILE:
+		for(i=0;i<al_size(node->u.loop.loopBody);i++){
+			tempNode1 = al_get(node->u.loop.loopBody, i);
+			flag=trans_if_else_helper_commGotos(syntaxTree, tempNode1);
+			if(flag)
+				break;
+		}
+		break;
+	case TN_IF_ELSE:
+		i = al_size(node->u.if_else.if_path);
+		tempNode1 = al_get(node->u.if_else.if_path, i-1);
+		i = al_size(node->u.if_else.else_path);
+		tempNode2 = al_get(node->u.if_else.else_path, i-1);
+		if(tempNode1)
+			tempNode1 = isStatementsEndWithGoto(syntaxTree, tempNode1);
+		if(tempNode2)
+			tempNode2 = isStatementsEndWithGoto(syntaxTree, tempNode2);
+		if(tempNode1 && tempNode2 && (tempNode1->u.go_to.synTargetBlock->id==tempNode2->u.go_to.synTargetBlock->id) &&
+				!TN_HAS_FLAG(tempNode1, TN_IS_GOTO_BREAK) && !TN_HAS_FLAG(tempNode1, TN_IS_GOTO_CONTINUE) &&
+				!TN_HAS_FLAG(tempNode2, TN_IS_GOTO_BREAK) && !TN_HAS_FLAG(tempNode2, TN_IS_GOTO_CONTINUE)
+		){
+			//remove 1 of the goto's and move another to after the if-else
+			//and change the pred# of the target node
+			tempNode1 = moveToAfter(syntaxTree, tempNode1, node);
+			tempNode2 = removeSyntaxTreeNode(syntaxTree, tempNode2);
+			al_remove(tempNode2->u.go_to.synTargetBlock->predsList, (void *)tempNode2);
+			destroySyntaxTreeNode(tempNode2);
+			flag=true;
+			break;	//break the case
+		}
+
+		for(i=0;i<al_size(node->u.if_else.if_path);i++){
+			tempNode1 = al_get(node->u.if_else.if_path, i);
+			flag=trans_if_else_helper_commGotos(syntaxTree, tempNode1);
+			if(flag)
+				break;	//break loop
+		}
+		if(flag)
+			break;
+		for(i=0;i<al_size(node->u.if_else.else_path);i++){
+			tempNode1 = al_get(node->u.if_else.else_path, i);
+			flag=trans_if_else_helper_commGotos(syntaxTree, tempNode1);
+			if(flag)
+				break;	//break loop
+		}
+		break;
+	case TN_GOTO:
+	case TN_RETURN:
+	case TN_RETEXP:
+	case TN_EXP:
+	case TN_DEFVAR:
+	default:
+		break;
+	}//end switch
+	return flag;
+}
 
 bool trans_if_else(ArrayList *syntaxTree){
 	int i;
@@ -3231,7 +3469,7 @@ bool trans_if_else(ArrayList *syntaxTree){
 		bool change = false;
 		for(i=0;i<al_size(syntaxTree);i++){
 			tempNode = al_get(syntaxTree, i);
-			//change = change || trans_if_else_helper_commGotos(syntaxTree, tempNode);
+			change = change || trans_if_else_helper_commGotos(syntaxTree, tempNode);
 			if(change)	//do it over if we made a movement, to avoid list length issue
 				break;
 		}

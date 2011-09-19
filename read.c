@@ -116,6 +116,7 @@ Instruction *GetInstrFromText(char *buffer){
 			//fprintf(stderr, "#LEN: %d\t", new->length);
 		}
 		else if(!strcmp(tok, "#FUN_INT:")){
+			assert(isInvokeInstruction(NULL, new));
 			tok=strtok_r(NULL, " \t\n", &tokSave);
 			if(!tok){
 				fprintf(stderr, "ERROR [line %d]: malformed trace [at LEN] \n", lineno);

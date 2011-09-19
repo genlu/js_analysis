@@ -33,6 +33,12 @@ Instruction *InstrCreate(void) {
     return (new);
 }
 
+/*
+ * NOTE: using strcmp instead of compare opcode directly is beacause
+ * those functions might be called in GetInstrFromText(), in which opcode
+ * has not been filled.
+ */
+
 
 void InstrDestroy(Instruction *instr) {
 	if(!strcmp(instr->opName, "string")){
@@ -86,13 +92,13 @@ InstrList *InstrListClone(InstrList *iList, uint32_t flag){
 				memcpy(newInstr->str, instr->str, strlen(instr->str)+1);
 			}
 			newInstr->order = newIndex++;
-			newInstr->flags = 0;
-			if(INSTR_HAS_FLAG(instr, INSTR_IS_LVAR_ACCESS)){
-				INSTR_SET_FLAG(newInstr, INSTR_IS_LVAR_ACCESS);
-			}
-			if(INSTR_HAS_FLAG(instr, INSTR_IS_LARG_ACCESS)){
-				INSTR_SET_FLAG(newInstr, INSTR_IS_LARG_ACCESS);
-			}
+			newInstr->flags = instr->flags;//0;
+			//clear block related flags
+			INSTR_CLR_FLAG(instr, INSTR_IN_SLICE);
+			INSTR_CLR_FLAG(instr, INSTR_IS_BBL_START);
+			INSTR_CLR_FLAG(instr, INSTR_IS_BBL_END);
+			INSTR_CLR_FLAG(instr, INSTR_IS_INSLICE_UNCERTAIN);
+
 			newInstr->inBlock = NULL;
 			newInstr->nextBlock = NULL;
 			InstrListAdd(newList, newInstr);
@@ -286,6 +292,7 @@ bool isNativeInvokeInstruction(InstrList *iList, Instruction *ins){
 		return true;
 	else
 		return false;
+	//return INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE);
 }
 
 
@@ -308,10 +315,10 @@ void labelInstructionList(InstrList *iList){
 				INSTR_SET_FLAG(instr, INSTR_IS_SCRIPT_INVOKE);
 			}
 			else if(!isNativeInvokeInstruction(iList, instr)){
-				//printInstruction(instr);
+				printInstruction(instr);
 				assert(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE));
 			}else{
-				//printInstruction(instr);
+				printInstruction(instr);
 				assert(INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE));
 			}
 		}

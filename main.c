@@ -23,7 +23,7 @@ void PrintInfo(int func){
 		f = "BASIC";
 		break;
 	case 1:
-		f = "FUNCTIONS";
+		f = "DECOMPILATION";
 		break;
 	case 2:
 		f = "SLICE";
@@ -241,6 +241,8 @@ int main (int argc, char *argv[]) {
 
     PrintInfo(2);
 
+
+
     ArrayList *blockList = NULL;
     ArrayList *loopList;
 
@@ -308,6 +310,7 @@ int main (int argc, char *argv[]) {
 
     printf("InstrListClone\n");
     sliceList = InstrListClone(iList, INSTR_IN_SLICE);
+    printInstrList(sliceList);
 
     //printInstrList(iList);
     //printInstrList(sliceList);
@@ -315,7 +318,7 @@ int main (int argc, char *argv[]) {
 
     //printInstrList(sliceList);
 
-    labelInstructionList(sliceList);
+    //labelInstructionList(sliceList);		//no need for this if we keep all the instruction type flags
     sliceBlockList = buildDynamicCFG(sliceList);
 
 

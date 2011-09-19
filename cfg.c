@@ -282,8 +282,9 @@ void markBasicBlockBoundary(InstrList *iList, ArrayList *leaders){
 			}
 		}
 	}
-	instr = getInstruction(iList, i-1);
+	instr = getInstruction(iList, iList->numInstrs-1);
 	INSTR_SET_FLAG(instr, INSTR_IS_BBL_END);
+	printInstruction(instr);
 }
 
 
@@ -519,12 +520,13 @@ ArrayList *buildBasicBlockList(InstrList *iList){
 				else if(INSTR_HAS_FLAG(instr,INSTR_IS_N_BRANCH))
 					block->type = BT_N_BRANCH;
 				else if(INSTR_HAS_FLAG(instr,INSTR_IS_SCRIPT_INVOKE)){
-/*					if(instr->opCode==JSOP_EVAL)
-						block->type = BT_EVAL;
-					else*/
 						block->type = BT_SCRIPT_INVOKE;
 				}
-				else if(INSTR_HAS_FLAG(instr,INSTR_IS_RET))
+				/*
+				 * it is possible in the slice the last instr is not stop/ret
+				 * we still have to set it to BT_RET
+				 */
+				else if(INSTR_HAS_FLAG(instr,INSTR_IS_RET) || i==size-1)
 					block->type = BT_RET;
 				else
 					block->type = BT_FALL_THROUGH;
