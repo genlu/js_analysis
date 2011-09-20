@@ -591,7 +591,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		return;
 	}
 
-	if(print_flag)
+	//if(print_flag)
 		printf("\n//id:%d\n", node->id);
 
 	str = (char *)malloc(16);
@@ -625,8 +625,8 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 
 
 	case TN_WHILE:
-		//printf("while(true) {\n");
-		printf("block_%d:\n", node->id);
+		if(al_size(node->predsList)>0)
+			printf("block_%d:\n", node->id);
 		printf("while( "); printExpTreeNode(node->u.loop.cond);printf(" ){\n");
 		for(i=0;i<al_size(node->u.loop.loopBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.loop.loopBody, i);
@@ -638,9 +638,9 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		break;
 
 	case TN_BLOCK:
-		if(TN_HAS_FLAG(node, TN_NOT_SHOW_LABEL)){
+		if(al_size(node->predsList)>0)
 			sprintf(str, "\n");
-		}else if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
+		else if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
 			sprintf(str, "block_%d:", node->id);
 		else
 			sprintf(str, "block_%d:", node->u.block.cfg_id);
@@ -665,11 +665,12 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		}else if(TN_HAS_FLAG(node, TN_IS_GOTO_CONTINUE)){
 			printf("continue;");
 		}else{
-			if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
-				sprintf(str, "block_%d", node->u.go_to.synTargetBlock->id);
+			if(0)
+				;
+			else if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
+				printf("goto block_%d", node->u.go_to.synTargetBlock->id);
 			else
-				sprintf(str, "block_%d", node->u.go_to.targetBlock->id);
-			printf("goto %s ", str);
+				printf("goto block_%d", node->u.go_to.targetBlock->id);
 		}
 		break;
 
@@ -2900,8 +2901,7 @@ bool isGotoTargetInThisLoop(SyntaxTreeNode *gotoNode, SyntaxTreeNode *whileNode)
 /*
  * Move block to after its only GOTO predecessor.
  *		- don't move loop header
- *		- don't move if already located immediately after predecessor goto node,
- *		 	set flag TN_HIDE on goto node, and TN_NOT_SHOW_LABEL onthe target node
+ *		- don't move if already located immediately after predecessor goto node
  *		- don't move node into a loop from outside
  */
 bool trans_goto_helper_move(ArrayList *syntaxTree, SyntaxTreeNode *node){
@@ -3480,7 +3480,34 @@ bool trans_if_else(ArrayList *syntaxTree){
 	return ret;
 }
 
+int remove_goto_and_label(ArrayList *syntaxTree, SyntaxTreeNode *node){
+	assert(node);
+	int i;
+	SyntaxTreeNode *tempNode1, *tempNode2;
+	switch(node->type){
+	case TN_BLOCK:
+		break;
+	case TN_FUNCTION:
+		break;
+	case TN_WHILE:
+		break;
+	case TN_IF_ELSE:
+		break;
+	case TN_GOTO:
+		break;
+	case TN_RETURN:
+	case TN_RETEXP:
+	case TN_EXP:
+	case TN_DEFVAR:
+	default:
+		break;
+	}//end switch
+	return 0;
+}
+
 void transformSyntaxTree(ArrayList *syntaxTree){
+	int i,j;
+	SyntaxTreeNode *node;
 	assert(syntaxTree);
 	//loop until no movement
 	while(true){
@@ -3490,6 +3517,12 @@ void transformSyntaxTree(ArrayList *syntaxTree){
 		change = change || trans_if_else(syntaxTree);
 		if(!change)
 			break;
+	}
+	i = al_size(syntaxTree);
+	printf("size of syntaxTree: %d\n", i);
+	for(j=0;j<i;j++){
+		node = al_get(syntaxTree, j);
+		remove_goto_and_label(syntaxTree, node);
 	}
 	return;
 }
