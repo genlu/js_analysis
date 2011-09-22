@@ -315,10 +315,10 @@ void labelInstructionList(InstrList *iList){
 				INSTR_SET_FLAG(instr, INSTR_IS_SCRIPT_INVOKE);
 			}
 			else if(!isNativeInvokeInstruction(iList, instr)){
-				printInstruction(instr);
+				//printInstruction(instr);
 				assert(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE));
 			}else{
-				printInstruction(instr);
+				//printInstruction(instr);
 				assert(INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE));
 			}
 		}
