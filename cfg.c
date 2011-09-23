@@ -284,7 +284,7 @@ void markBasicBlockBoundary(InstrList *iList, ArrayList *leaders){
 	}
 	instr = getInstruction(iList, iList->numInstrs-1);
 	INSTR_SET_FLAG(instr, INSTR_IS_BBL_END);
-	printInstruction(instr);
+	//printInstruction(instr);
 }
 
 
@@ -301,7 +301,7 @@ BasicBlock *createBasicBlock(void){
 	new->addr = new->end_addr = new->flags = new->count = 0;
 
 	new->calltarget = NULL;
-	new->instrs = al_newGeneric(AL_LIST_SORTED, insCompareByAddr, refPrint, dealloc);
+	new->instrs = al_newGeneric(AL_LIST_SET, insCompareByAddr, refPrint, dealloc);
 /*	new->preds = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
 	new->succs = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);*/
 	new->preds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);

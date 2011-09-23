@@ -32,6 +32,7 @@ typedef enum {
 /*********************************************************************************/
 
 #define	INSTR_IN_SLICE				(1<<0)				// instruction is in the data dependence chain
+#define	INSTR_ON_EVAL				(1<<1)				// instruction affected the some string being eval'ed
 
 #define	INSTR_IS_1_BRANCH			(1<<2)
 #define	INSTR_IS_2_BRANCH			(1<<3)
@@ -134,6 +135,8 @@ struct BasicBlock{
 #define BBL_IS_FUNC_RET				(1<<4)
 #define BBL_IS_EVAL_ENTRY			(1<<5)
 #define BBL_IS_EVAL_RET				(1<<6)
+#define BBL_IS_IN_SLICE				(1<<7)
+
 #define BBL_FLAG_TMP0				(1<<30)
 #define BBL_FLAG_TMP1				(1<<31)
 

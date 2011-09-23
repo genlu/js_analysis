@@ -10,7 +10,6 @@
 #include "stack_sim.h"
 #include "writeSet.h"
 
-#define CHECK_SLICE 0
 
 //can't create a (0,0) property
 Property *createProperty(ADDRESS obj,long id){
@@ -331,37 +330,6 @@ void markUDchain(InstrList *iList, SlicingState *state){
 		}
 #endif   //end #if INCLUDE_DATA_DEP
 
-#if CHECK_SLICE
-		if(!add_flag){
-			if(INSTR_HAS_FLAG(instr, INSTR_IS_BBL_START)){
-
-				//printf("lalalala\t%d\n", instr->order);
-				int j;
-				Instruction *tempInstr;
-				for(j=0;j<InstrListLength(currentFrame);j++){
-					tempInstr = getInstruction(currentFrame, j);
-					if(tempInstr->inBlock->id != instr->inBlock->id){
-						add_flag++;
-						break;
-					}
-				}
-				for(j=instr->order;;j++){
-					tempInstr = getInstruction(iList,  j);
-					if(tempInstr->inBlock->id != instr->inBlock->id)
-						break;
-					if(INSTR_HAS_FLAG(tempInstr,INSTR_IN_SLICE)){
-						add_flag++;
-						break;
-					}
-				}
-			}else if(INSTR_HAS_FLAG(instr, INSTR_IS_BBL_END)/* && (instr->opCode != JSOP_EVAL)*/){
-				add_flag++;
-				INSTR_SET_FLAG(instr, INSTR_IS_INSLICE_UNCERTAIN);
-				//printf("~~~ instr %d has been added form slice with uncertainty\n", instr->order);
-			}
-		}
-#endif
-
 		if(add_flag){
 			//put this instr in UD chain
 			INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
@@ -391,22 +359,6 @@ void checkSlice(InstrList *iList){
 
 	int i,j;
 	Instruction *instr, *instr2;
-#if CHECK_SLICE
-	int lastBlock = -1;
-	for(i=0;i<InstrListLength(iList);i++){
-		instr = getInstruction(iList, i);
-		INSTR_CLR_FLAG(instr, INSTR_FLAG_TMP0);
-		if(INSTR_HAS_FLAG(instr, INSTR_IS_INSLICE_UNCERTAIN)){
-			if(instr->inBlock->id!=lastBlock){
-				INSTR_CLR_FLAG(instr, INSTR_IN_SLICE);
-				//printf("~~~ instr %d has been removed form slice\n", instr->order);
-			}
-			INSTR_CLR_FLAG(instr, INSTR_IS_INSLICE_UNCERTAIN);
-		}else{
-			lastBlock = instr->inBlock->id;
-		}
-	}
-#endif
 
 	for(i=0;i<InstrListLength(iList);i++){
 		instr = getInstruction(iList, i);

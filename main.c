@@ -257,6 +257,7 @@ int main (int argc, char *argv[]) {
 
     printf("processEvaledInstr...\n");
     processEvaledInstr(iList);
+    printInstrList(iList);
 
     /*
      * Build dynamic CFG.
@@ -310,14 +311,14 @@ int main (int argc, char *argv[]) {
 
     printf("InstrListClone\n");
     sliceList = InstrListClone(iList, INSTR_IN_SLICE);
-    printInstrList(sliceList);
 
     //printInstrList(iList);
-    //printInstrList(sliceList);
+    printInstrList(sliceList);
 
 
     //printInstrList(sliceList);
 
+    printf("build CFG for slice..\n");
     //labelInstructionList(sliceList);		//no need for this if we keep all the instruction type flags
     sliceBlockList = buildDynamicCFG(sliceList);
 
@@ -325,6 +326,7 @@ int main (int argc, char *argv[]) {
     //printInstrList(sliceList);
    // printBasicBlockList(sliceBlockList);
 
+    printf("build function CFGs for slice...\n");
     sliceFuncCFGs = buildFunctionCFGs(sliceList, sliceBlockList);
 
 
@@ -332,6 +334,7 @@ int main (int argc, char *argv[]) {
 
     //printInstrList(iList);
 
+    printf("calculate dominator information...\n");
     findDominators(sliceBlockList);
     buildDFSTree(sliceBlockList);
     reducible = findBackEdges(sliceBlockList);
@@ -345,8 +348,12 @@ int main (int argc, char *argv[]) {
     sliceLoopList = buildNaturalLoopList(sliceBlockList);
     // printNaturalLoopList(sliceLoopList);
 
-
+    printf("build syntax tree for slice...\n");
     sliceSyntaxTree=buildSyntaxTree(sliceList,sliceBlockList, sliceLoopList, sliceFuncCFGs);
+
+    printf("\nTransform syntax tree...\n");
+    transformSyntaxTree(sliceSyntaxTree);
+
     printf("\nRecovered Source Code:\n");
     for(i=0;i<al_size(sliceSyntaxTree);i++){
     	sliceSyntaxTreeNode = al_get(sliceSyntaxTree, i);
