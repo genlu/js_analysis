@@ -55,8 +55,8 @@ void test(void){
 }
 
 #define BASIC		0
-#define	DECOMPILE	0
-#define SLICE		1
+#define	DECOMPILE	1
+#define SLICE		0
 
 int main (int argc, char *argv[]) {
 
@@ -157,7 +157,7 @@ int main (int argc, char *argv[]) {
 
 
 	//printBasicBlockList(funcBlockList);
-    //printInstrList(iList);
+    printInstrList(iList);
     funcCFGs = buildFunctionCFGs(iList, funcBlockList);
 
 	//printBasicBlockList(funcBlockList);

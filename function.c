@@ -179,7 +179,7 @@ static void doSearch(ArrayList *blockList, BasicBlock *n, uint32_t flag, ArrayLi
 			edge = (BlockEdge *)al_get(n->succs, i);
 			block1 = edge->head;
 			if(!BBL_HAS_FLAG(block1, flag)){
-				EDGE_SET_FLAG(edge, EDGE_IN_DFST);
+				//EDGE_SET_FLAG(edge, EDGE_IN_DFST);
 				doSearch(blockList, block1, flag, functionCFGs);
 			}
 		}
@@ -332,6 +332,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
 		BBL_CLR_FLAG(block, BBL_FLAG_TMP0);
 	}
 
+	//try to find the total number of arguments of each function
 	for(i=0;i<al_size(functionCFGs);i++){
 		int args = 0;
 		func = al_get(functionCFGs, i);
