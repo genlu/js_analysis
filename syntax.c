@@ -418,6 +418,9 @@ void printExpTreeNode(ExpTreeNode *node){
 		case OP_DIV:
 			printf("/");
 			break;
+		case OP_MOD:
+			printf("%%");
+			break;
 		case OP_INITPROP:
 			printf(":");
 			break;
@@ -680,7 +683,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		break;
 
 	case TN_RETURN:
-		printf("return");
+		//printf("return");
 		break;
 
 	case TN_RETEXP:
@@ -1205,6 +1208,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_SUB:
 		case JSOP_MUL:
 		case JSOP_DIV:
+		case JSOP_MOD:
 		case JSOP_GE:
 		case JSOP_GT:
 		case JSOP_LE:
@@ -1232,6 +1236,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			}
 			else if(instr->opCode == JSOP_DIV){
 				expTreeNode3->u.bin_op.op = OP_DIV;
+			}
+			else if(instr->opCode == JSOP_MOD){
+				expTreeNode3->u.bin_op.op = OP_MOD;
 			}
 			else if(instr->opCode == JSOP_GE){
 				expTreeNode3->u.bin_op.op = OP_GE;
@@ -1820,11 +1827,11 @@ SyntaxTreeNode *findBlockNodeByOldID(ArrayList *syntaxTree, int oldID){
 		node = al_get(syntaxTree, i);
 		//assert(node->type == TN_BLOCK);
 		if(node->type == TN_BLOCK && node->u.block.cfg_id==oldID){
-			fprintf(stderr, "block old id:%d\n", node->u.block.cfg_id);
+			//fprintf(stderr, "block old id:%d\n", node->u.block.cfg_id);
 			return node;
 		}
 		if(node->type == TN_WHILE && node->u.loop.header->id==oldID ){
-			fprintf(stderr, "while old id:%d\n", node->u.loop.header->id);
+			//fprintf(stderr, "while old id:%d\n", node->u.loop.header->id);
 			return node;
 		}
 	}
@@ -2034,7 +2041,7 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 	for(i=0;i<al_size(funcCFGs);i++){
 		func = al_get(funcCFGs,  i);
 
-		printf("processing function %s\n", func->funcName);
+		printf("processing function %s\nblocks:\t", func->funcName);
 		for(j=0;j<al_size(func->funcBody);j++){
 			block = al_get(func->funcBody, j);
 			printf("%d\t", block->id);
@@ -2054,7 +2061,7 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 		TN_SET_FLAG(sTreeNode1, TN_NOT_SHOW_LABEL);
 		al_remove(syntaxTree, sTreeNode1);
 		al_add(funcNode->u.func.funcBody, sTreeNode1);
-		//alway indert function at the beginning
+		//alway insert function at the beginning
 		al_insertAt(syntaxTree, funcNode, 0);
 
 		//then we iterate through the syntaxTree list, and find nodes in function

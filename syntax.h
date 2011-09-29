@@ -33,6 +33,8 @@ typedef enum{
 	OP_MUL,
 	OP_DIV,
 
+	OP_MOD,
+
 
 	OP_BITAND,
 	OP_BITOR,
