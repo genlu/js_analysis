@@ -257,7 +257,6 @@ int main (int argc, char *argv[]) {
 
     printf("processEvaledInstr...\n");
     processEvaledInstr(iList);
-    printInstrList(iList);
 
     /*
      * Build dynamic CFG.
@@ -291,6 +290,7 @@ int main (int argc, char *argv[]) {
     loopList = buildNaturalLoopList(blockList);
    // printNaturalLoopList(loopList);
 
+    printInstrList(iList);
 
 
     destroyNaturalLoopList(loopList);
@@ -313,7 +313,7 @@ int main (int argc, char *argv[]) {
     sliceList = InstrListClone(iList, INSTR_IN_SLICE);
 
     //printInstrList(iList);
-    printInstrList(sliceList);
+    //printInstrList(sliceList);
 
 
     //printInstrList(sliceList);
@@ -343,7 +343,7 @@ int main (int argc, char *argv[]) {
     else
     	printf("NOT REDUCIBLE\n");
 
-    //printInstrList(sliceList);
+    printInstrList(sliceList);
     //printBasicBlockList(sliceBlockList);
     sliceLoopList = buildNaturalLoopList(sliceBlockList);
     // printNaturalLoopList(sliceLoopList);

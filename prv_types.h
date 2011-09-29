@@ -32,7 +32,7 @@ typedef enum {
 /*********************************************************************************/
 
 #define	INSTR_IN_SLICE				(1<<0)				// instruction is in the data dependence chain
-#define	INSTR_ON_EVAL				(1<<1)				// instruction affected the some string being eval'ed
+#define	INSTR_ON_EVAL				(1<<1)				// instruction affected the value of some string being eval'ed
 
 #define	INSTR_IS_1_BRANCH			(1<<2)
 #define	INSTR_IS_2_BRANCH			(1<<3)
@@ -46,10 +46,11 @@ typedef enum {
 #define INSTR_IS_LARG_ACCESS		(1<<10)				// the number of arg/var is stored in oprand.i
 														//caution: if 1 of these 2 flags is set, then propUse/Def fields must be empty
 
+#define	INSTR_BRANCH_TAKEN			(1<<11)
+#define	INSTR_BRANCH_NOT_TAKEN		(1<<12)
+
 #define	INSTR_IS_BBL_START			(1<<15)
 #define INSTR_IS_BBL_END			(1<<16)
-
-#define INSTR_IS_INSLICE_UNCERTAIN	(1<<17)
 
 #define INSTR_FLAG_TMP0				(1<<31)
 

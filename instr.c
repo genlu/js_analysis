@@ -94,10 +94,9 @@ InstrList *InstrListClone(InstrList *iList, uint32_t flag){
 			newInstr->order = newIndex++;
 			newInstr->flags = instr->flags;//0;
 			//clear block related flags
-			INSTR_CLR_FLAG(instr, INSTR_IN_SLICE);
-			INSTR_CLR_FLAG(instr, INSTR_IS_BBL_START);
-			INSTR_CLR_FLAG(instr, INSTR_IS_BBL_END);
-			INSTR_CLR_FLAG(instr, INSTR_IS_INSLICE_UNCERTAIN);
+			INSTR_CLR_FLAG(newInstr, INSTR_IN_SLICE);
+			INSTR_CLR_FLAG(newInstr, INSTR_IS_BBL_START);
+			INSTR_CLR_FLAG(newInstr, INSTR_IS_BBL_END);
 
 			newInstr->inBlock = NULL;
 			newInstr->nextBlock = NULL;
@@ -340,10 +339,11 @@ void printInstruction(Instruction *ins){
 			ins->stackUse, ins->stackDef, ins->localUse, ins->localDef, \
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId
 	);*/
-	printf("%c%c%c $%d$ #%u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+	printf("%c%c%c%c $%d$ #%u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
 			INSTR_HAS_FLAG(ins,INSTR_IN_SLICE)?'*':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_START)?'S':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_END)?'E':' ',
+			INSTR_HAS_FLAG(ins,INSTR_BRANCH_TAKEN)?'1':INSTR_HAS_FLAG(ins,INSTR_BRANCH_NOT_TAKEN)?'0':' ',
 			ins->inBlock?ins->inBlock->id:-1,
 			ins->order, ins->addr,	ins->opName,
 			ins->stackUseStart, ins->stackUseStart==0?0:ins->stackUseStart+(PTRSIZE * ins->stackUse)-1,

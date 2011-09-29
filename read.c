@@ -465,7 +465,17 @@ Instruction *GetInstrFromText(char *buffer){
 			}
 			slot=atoi(tok);
 			new->jmpOffset=slot;
-			//fprintf(stderr, "#COND_JMP: %-4d\t", slot);
+			tok = strtok_r(NULL, " \t\n", &tokSave);
+			if(!tok){
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at #JMP_OFFSET] \n", lineno);
+				abort();
+			}
+			slot=atoi(tok);
+			assert(slot==0||slot==1);
+			if(slot==0)
+				INSTR_SET_FLAG(new, INSTR_BRANCH_NOT_TAKEN);
+			else
+				INSTR_SET_FLAG(new, INSTR_BRANCH_TAKEN);
 		}
 		else{
 			fprintf(stderr, "ERROR [line %d]: unrecognized token %s\n", lineno, tok);
