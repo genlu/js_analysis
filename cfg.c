@@ -225,8 +225,6 @@ ArrayList *findLeaders(InstrList *iList){
 			al_add(leaders, (void *)(instr->addr + instr->jmpOffset));
 			assert(instr->length>0);
 			al_add(leaders, (void *)(instr->addr + instr->length));
-			temp_ins = getInstruction(iList, i+1);
-			al_add(leaders, (void *)(temp_ins->addr));
 		}
 		else if(isRetInstruction(iList, instr)){
 			if(i < iList->numInstrs-1){

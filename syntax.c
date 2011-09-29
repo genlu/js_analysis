@@ -683,7 +683,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		break;
 
 	case TN_RETURN:
-		//printf("return");
+		printf("return");
 		break;
 
 	case TN_RETEXP:

@@ -55,8 +55,8 @@ void test(void){
 }
 
 #define BASIC		0
-#define	DECOMPILE	1
-#define SLICE		0
+#define	DECOMPILE	0
+#define SLICE		1
 
 int main (int argc, char *argv[]) {
 
@@ -158,6 +158,7 @@ int main (int argc, char *argv[]) {
 
 	//printBasicBlockList(funcBlockList);
     printInstrList(iList);
+    printf("building function CFGs...\n");
     funcCFGs = buildFunctionCFGs(iList, funcBlockList);
 
 	//printBasicBlockList(funcBlockList);
@@ -241,93 +242,75 @@ int main (int argc, char *argv[]) {
 
     PrintInfo(2);
 
-
-
-    ArrayList *blockList = NULL;
-    ArrayList *loopList;
+    ArrayList *blockList, *sliceBlockList;
+    ArrayList *funcCFGs, *sliceFuncCFGs;
+    ArrayList *loopList, *sliceLoopList;
+    InstrList *sliceInstrList;
 
 
     ArrayList *sliceSyntaxTree;
     SyntaxTreeNode *sliceSyntaxTreeNode;
 
-    ArrayList *sliceBlockList = NULL;
-    ArrayList *sliceLoopList;
-    InstrList *sliceList;
-    ArrayList *sliceFuncCFGs;
 
     printf("processEvaledInstr...\n");
     processEvaledInstr(iList);
 
-    /*
-     * Build dynamic CFG.
-     * (No edges are marked yet)
-     */
+    //Build dynamic CFG.
+    printf("build CFG for entire trace...\n");
     blockList = buildDynamicCFG(iList);
-
-    /*
-     * find dominators for each node (basicBlock)
-     */
+    //create functions list (separate them from main procedure)
+    printf("construct functions list from the CFG of entire trace...\n");
+    funcCFGs = buildFunctionCFGs(iList, blockList);
+    //find dominators for each node (basicBlock)
     findDominators(blockList);
-
-    /*
-     * build a DFS-Tree on CFG
-     * (tree edges are marked)
-     */
+    //build a DFS-Tree on CFG(tree edges are marked)
     buildDFSTree(blockList);
-
-    /*
-     * mark all retreat edges and backedges in given CFG and DFS-Tree
-     * and determin if this CFG is reducible.
-     */
-    reducible = findBackEdges(blockList);
-    if(reducible)
-    	printf("REDUCIBLE\n");
-    else
-    	printf("NOT REDUCIBLE\n");
-
-   // printBasicBlockList(blockList);
-
-    loopList = buildNaturalLoopList(blockList);
-   // printNaturalLoopList(loopList);
 
     printInstrList(iList);
 
 
-    destroyNaturalLoopList(loopList);
-	//destroyBasicBlockList(blockList);
-
-
-
-
-	/*
-	 * do the dynamic slicing based on instruction specified by 'slicing_begin'
-	 */
+	//do the dynamic slicing based on instruction specified by 'slicing_begin'
+    //todo: need to do d-slicing on all the native calls not contribute to eval
     SlicingState *state = initSlicingState(iList, slicing_begin/*30 53*/);
     //testUD(iList,state);
-    // printSlicingState(state);
+    //todo
     markUDchain(iList, state);
     //printSlicingState(state);
     checkSlice(iList);
 
+    /*todo: big change here
+    1. find all function entry instrs: 1st instr after a non-native call (1 per function/eval)
+    2. find all function exit instrs: 1st instr before a func entry instr (could be more than 1)
+    3. create a function obj table for slice
+		- with funcObj, entryAddr
+	4. collecting info for branch instruction
+		- target address for 1 way branch
+		- branch and adj address for 2 way branch
+		- todo: don't worry about and/or for now...
+    5. unlabel all instructions which:
+		- added by checkSlice(), and
+		- belong to some func/eval, and
+		- the invoke instr is not in the slice
+
+    */
+
+    //after above steps, we could get a list of headers, and construct slice CFG based on them
     printf("InstrListClone\n");
-    sliceList = InstrListClone(iList, INSTR_IN_SLICE);
-
-    //printInstrList(iList);
-    //printInstrList(sliceList);
+    sliceInstrList = InstrListClone(iList, INSTR_IN_SLICE);
 
 
-    //printInstrList(sliceList);
-
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     printf("build CFG for slice..\n");
     //labelInstructionList(sliceList);		//no need for this if we keep all the instruction type flags
-    sliceBlockList = buildDynamicCFG(sliceList);
+    sliceBlockList = buildDynamicCFG(sliceInstrList);
 
 
     //printInstrList(sliceList);
    // printBasicBlockList(sliceBlockList);
 
     printf("build function CFGs for slice...\n");
-    sliceFuncCFGs = buildFunctionCFGs(sliceList, sliceBlockList);
+    sliceFuncCFGs = buildFunctionCFGs(sliceInstrList, sliceBlockList);
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -343,13 +326,13 @@ int main (int argc, char *argv[]) {
     else
     	printf("NOT REDUCIBLE\n");
 
-    printInstrList(sliceList);
+    printInstrList(sliceInstrList);
     //printBasicBlockList(sliceBlockList);
     sliceLoopList = buildNaturalLoopList(sliceBlockList);
     // printNaturalLoopList(sliceLoopList);
 
     printf("build syntax tree for slice...\n");
-    sliceSyntaxTree=buildSyntaxTree(sliceList,sliceBlockList, sliceLoopList, sliceFuncCFGs);
+    sliceSyntaxTree=buildSyntaxTree(sliceInstrList,sliceBlockList, sliceLoopList, sliceFuncCFGs);
 
     printf("\nTransform syntax tree...\n");
     transformSyntaxTree(sliceSyntaxTree);
@@ -363,7 +346,7 @@ int main (int argc, char *argv[]) {
     destroySlicingState(state);
     destroyNaturalLoopList(sliceLoopList);
 	destroyBasicBlockList(sliceBlockList);
-    InstrListDestroy(sliceList, 1);
+    InstrListDestroy(sliceInstrList, 1);
 
     /*
      * done slice CFG ^^^
