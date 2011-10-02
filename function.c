@@ -12,6 +12,11 @@
 #include "instr.h"
 #include "function.h"
 
+static int anonfunobjctl=0;
+static int funobjtableentryctl=0;
+
+char *anonfunobj_str = "anonfunobj";
+
 int functionCFGProcessed = 0;
 
 int FuncEntryBlkIDCompare(void *i1, void *i2){
@@ -25,8 +30,11 @@ int FuncEntryAddrCompare(void *i1, void *i2){
 }
 
 void destroyFunctionNode(void *func){
-	if(func!=NULL)
+	if(func!=NULL){
+		if(((Function *)func)->funcObj)
+			al_free(((Function *)func)->funcObj);
 		free((Function *)func);
+	}
 }
 
 Function *createFunctionNode(void){
@@ -35,7 +43,7 @@ Function *createFunctionNode(void){
 	func->args = 0;
 	func->flags = 0;
 	func->funcEntryAddr = 0;
-	func->funcObj = 0;
+	func->funcObj = al_newInt(AL_LIST_SET);;
 	func->funcEntryBlock = NULL;
 	func->funcName = NULL;
 	func->funcBody = al_newGeneric(AL_LIST_SORTED, blockIdCompare, NULL, NULL);
@@ -220,7 +228,7 @@ void concatCallSiteBlocks(BlockEdge *edge){
 
 
 
-void doSearchFuncBody(BasicBlock *n, ArrayList *funcBody, uint32_t flag){
+void doSearchFuncBody(Function *func, BasicBlock *n, ArrayList *funcBody, uint32_t flag){
 	int i;
 	BlockEdge *edge;
 	BasicBlock *block;
@@ -233,17 +241,37 @@ void doSearchFuncBody(BasicBlock *n, ArrayList *funcBody, uint32_t flag){
 		edge = al_get(n->succs, i);
 		block = edge->head;
 		if(!BBL_HAS_FLAG(block, flag)){
-			doSearchFuncBody(block, funcBody, flag);
+			doSearchFuncBody(func, block, funcBody, flag);
 		}
 	}
 }
+
+
+void traverseFuncBody(Function *func, BasicBlock *n, uint32_t flag){
+	int i;
+	BlockEdge *edge;
+	BasicBlock *block;
+	assert(n);
+	BBL_SET_FLAG(n, flag);
+
+	n->inFunction = func->funcEntryAddr;
+
+	for(i=0;i<al_size(n->succs);i++){
+		edge = al_get(n->succs, i);
+		block = edge->head;
+		if(!BBL_HAS_FLAG(block, flag)){
+			traverseFuncBody(func, block, flag);
+		}
+	}
+}
+
 /*
  *	buildFunctionCFGs() rearrange CFG specified by 'blockList',
  *	"cut out" all the functions, and connect call-site and return-site (adjacent instructions)
  *	with an 'EDGE_IS_CALLSITE' edge. it also mark entry and return node of functions
  *	Finally, a list of Function nodes is returned (program entry is not considered as a function)
  */
-ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
+ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList, ArrayList **funcObjTable){
 	int i,j,k;
 	BasicBlock *block;
 	BlockEdge *edge;
@@ -314,7 +342,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
 	//find all the function bodies
 	for(i=0;i<al_size(functionCFGs);i++){
 		func = al_get(functionCFGs, i);
-		doSearchFuncBody(func->funcEntryBlock, func->funcBody, BBL_FLAG_TMP0);
+		doSearchFuncBody(func, func->funcEntryBlock, func->funcBody, BBL_FLAG_TMP0);
 	}
 	//print all function info
 	for(i=0;i<al_size(functionCFGs);i++){
@@ -351,17 +379,42 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList){
 		func->args = args;
 	}
 
+
+	//create funcObjTable first, this is needed for slice processing
+    *funcObjTable = constructFuncObjTable(iList, functionCFGs);
+	printFuncObjTable(*funcObjTable);
+
+	//fill the block->inFunction field (which is from func_obj)
+	for(i=0;i<al_size(functionCFGs);i++){
+		func = al_get(functionCFGs, i);
+		traverseFuncBody(func, func->funcEntryBlock, BBL_FLAG_TMP0);
+	}
+	for(i=0;i<al_size(blockList);i++){
+		block = al_get(blockList, i);
+		BBL_CLR_FLAG(block, BBL_FLAG_TMP0);
+	}
+	//for each instr, find which function this instr is in. (0 means not in any function, or in main procedure )
+	for(i=0;i<InstrListLength(iList);i++){
+		instr = getInstruction(iList, i);
+		instr->inFunction = instr->inBlock->inFunction;
+	}
+
+
 	return functionCFGs;
 }
 
 Function *findFunctionByObjAddress(ArrayList *functionCFGs, ADDRESS funcObjAddr){
 	assert(functionCFGs);
 	Function *func;
-	int i;
+	ADDRESS funcObj;
+	int i,j;
 	for(i=0;i<al_size(functionCFGs);i++){
 		func = al_get(functionCFGs, i);
-		if(func->funcObj==funcObjAddr){
-			return func;
+		for(j=0;j<al_size(func->funcObj);j++){
+			funcObj = (ADDRESS) al_get(func->funcObj, j);
+			if(funcObj==funcObjAddr){
+				return func;
+			}
 		}
 	}
 	printf("Error: cannot find function object with id %lx\n", funcObjAddr);
@@ -409,3 +462,236 @@ BasicBlock *isBlockInTheFunction(Function *func, int id){
 	}
 	return NULL;
 }
+
+
+
+
+FuncObjTableEntry *createFuncObjTableEntry(void){
+	FuncObjTableEntry *entry;
+	entry = (FuncObjTableEntry *)malloc(sizeof(FuncObjTableEntry));
+	assert(entry);
+	entry->id = funobjtableentryctl++;
+	entry->flags = 0;
+	entry->func_name = NULL;
+	entry->func_addr = 0;
+	entry->anonfunobj_instr_addr = 0;
+	entry->func_struct = NULL;
+	entry->func_objs = al_newInt(AL_LIST_SET);
+	return entry;
+}
+
+void destroyFuncObjTableEntry(void *e){
+	assert(e);
+	FuncObjTableEntry *entry = (FuncObjTableEntry *)e;
+	if(entry->func_name){
+		free(entry->func_name);
+		entry->func_name = NULL;
+	}
+	if(entry->func_objs){
+		al_free(entry->func_objs);
+		entry->func_objs=NULL;
+	}
+	free(entry);
+}
+
+//function's starting address is unique, rather than the function's obj address (i.e. anonymous functions)
+int FuncObjTableEntryCompare(void *a1, void *a2){
+	assert(a1 && a2);
+	return ((FuncObjTableEntry *)a1)->func_addr - ((FuncObjTableEntry *)a2)->func_addr;
+}
+
+//find function table entry by address
+FuncObjTableEntry *findFuncObjTableEntryByFuncAddr(ArrayList *FuncObjTable, ADDRESS funcAddr){
+	assert(FuncObjTable);
+	assert(funcAddr);
+	int i;
+	FuncObjTableEntry *entry;
+	for(i=0;i<al_size(FuncObjTable);i++){
+		entry = (FuncObjTableEntry*)al_get(FuncObjTable, i);
+		if(entry->func_addr == funcAddr){
+			return entry;
+		}
+	}
+	return NULL;
+}
+
+//find function table entry by address
+FuncObjTableEntry *findFuncObjTableEntryByFuncObj(ArrayList *FuncObjTable, ADDRESS funcObj){
+	assert(FuncObjTable);
+	assert(funcObj);
+	int i,j;
+	ADDRESS tempAddr = 0;
+	FuncObjTableEntry *entry = NULL;
+	for(i=0;i<al_size(FuncObjTable);i++){
+		entry = al_get(FuncObjTable, i);
+		for(j=0;j<al_size(entry->func_objs);j++){
+			tempAddr = (ADDRESS)al_get(entry->func_objs, j);
+			if(tempAddr == funcObj){
+				return entry;
+			}
+		}
+	}
+	return NULL;
+}
+
+void printFuncObjTableEntry(FuncObjTableEntry *entry){
+	int i;
+	printf("id: %d\tfuncName: %16s\tfunc_addr:%lx\ttargetBlock:%d\n", entry->id,
+			entry->func_name?entry->func_name:"(null)", entry->func_addr, entry->func_struct?entry->func_struct->funcEntryBlock->id:-1);
+	printf("\t-- func_objs:\t");
+	for(i=0;i<al_size(entry->func_objs);i++){
+		printf("  %lx  ", (ADDRESS)al_get(entry->func_objs, i));
+	}
+	printf("\n");
+}
+
+void printFuncObjTable(ArrayList *funcObjTable){
+	assert(funcObjTable);
+	int i;
+	FuncObjTableEntry *entry;
+	printf("\nFuncObj Table:\n");
+	for(i=0;i<al_size(funcObjTable);i++){
+		entry = al_get(funcObjTable, i);
+		printFuncObjTableEntry(entry);
+	}
+	printf("\n");
+}
+
+
+/*******************************************************************/
+
+/*
+ * go though the trace to create functionObjTable.
+ * function def instructions (JSOP_DEFFUN, JSOP_CLOSURE) will add a new entry in table, fill in the name and funcObj
+ * 		JSOP_ANONFUNOBJ will check if the function is already added (by using instr's addr) before create a new entry
+ * Function calling instructions (JSOP_NEW & JSOP_CALL) will find the existing function entry,
+ * 		and fill in the the address of function's first instruction ()
+ */
+ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs){
+
+	anonfunobjctl = 0;
+
+#define TABLE_DEBUG 0
+
+	int i,j, size;
+	char *str=NULL;
+	Instruction *instr=NULL;
+	Instruction *next=NULL;
+	Function *funcStruct=NULL;
+	FuncObjTableEntry *funcObjTableEntry1=NULL;
+	ArrayList *funcObjTable;
+
+	funcObjTable = al_newGeneric(AL_LIST_UNSORTED, NULL, NULL, destroyFuncObjTableEntry);
+
+	size = InstrListLength(iList);
+	for(i=0;i<size;i++){
+		instr = getInstruction(iList, i);
+		if(i<size-1)
+			next = getInstruction(iList, i+1);
+		else
+			next = NULL;
+		//function calling instrs
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode == JSOP_NEW || instr->opCode == JSOP_CALL)){
+			assert(next);
+
+#if TABLE_DEBUG
+		fprintf(stderr, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~instr: %lx\tfind func instr->objRef: %lx\n", instr->addr, instr->objRef);
+#endif
+
+			funcStruct = findFunctionByEntryAddress(funcCFGs, next->addr);
+			funcObjTableEntry1 = findFuncObjTableEntryByFuncObj(funcObjTable, instr->objRef);
+			assert(funcObjTableEntry1);
+			assert(funcStruct);
+			assert(funcObjTableEntry1->func_name);
+
+			if(funcObjTableEntry1->func_struct!=NULL){
+				assert(funcObjTableEntry1->func_struct==funcStruct);
+			}else{
+				funcObjTableEntry1->func_struct = funcStruct;
+			}
+			if(funcObjTableEntry1->func_addr!=0){
+				assert(funcObjTableEntry1->func_addr==next->addr);
+			}else{
+				funcObjTableEntry1->func_addr = next->addr;
+			}
+			if(funcStruct->funcName==NULL){
+				funcStruct->funcName = (char *)malloc(strlen(funcObjTableEntry1->func_name)+1);
+				assert(funcStruct->funcName);
+				memcpy(funcStruct->funcName, funcObjTableEntry1->func_name, strlen(funcObjTableEntry1->func_name)+1);
+				al_add(funcStruct->funcObj,(void *)instr->objRef);
+			}else{
+				assert(!strcmp(funcStruct->funcName, funcObjTableEntry1->func_name));
+			}
+		}
+		//eval, do nothing, just set flag (since eval'ed code doesn't need a name)
+		else if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode == JSOP_EVAL)){
+			assert(next);
+			funcStruct = findFunctionByEntryAddress(funcCFGs, next->addr);
+			BBL_SET_FLAG(funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY);
+		}
+		//named function def
+		else if(instr->opCode==JSOP_DEFFUN || instr->opCode==JSOP_CLOSURE){
+#if TABLE_DEBUG
+		fprintf(stderr, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~instr: %lx\tadd func %s instr->objRef: %lx\n", instr->addr,
+				instr->str?instr->str:"(null)", instr->objRef);
+#endif
+			str = (char *)malloc(strlen(instr->str)+1);
+			assert(str);
+			memcpy(str, instr->str, strlen(instr->str)+1);
+			funcObjTableEntry1 = createFuncObjTableEntry();
+			funcObjTableEntry1->func_name = str;
+			al_add(funcObjTableEntry1->func_objs, (void *)(instr->objRef));
+			assert(!findFuncObjTableEntryByFuncObj(funcObjTable, instr->objRef));
+			al_add(funcObjTable, funcObjTableEntry1);
+			str=NULL;
+#if TABLE_DEBUG
+		printFuncObjTable(funcObjTable);
+#endif
+		}
+		//anonymous
+		else if(instr->opCode==JSOP_ANONFUNOBJ){
+			//first, check if there's any entry for the same anonymous function already been added
+			//we have to use anonfunobj instruction's addr since every time this instr will use a different obj_ref
+			for(j=0;j<al_size(funcObjTable);j++){
+				funcObjTableEntry1 = (FuncObjTableEntry *)al_get(funcObjTable, j);
+				if(FE_HAS_FLAG(funcObjTableEntry1, FE_IS_ANONFUNOBJ) && funcObjTableEntry1->anonfunobj_instr_addr==instr->addr){
+					break;
+				}
+				funcObjTableEntry1=NULL;
+			}
+			//if we find one, then just add the obj_entry in to the list
+			if(funcObjTableEntry1){
+#if TABLE_DEBUG
+		fprintf(stderr, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~instr: %lx\tadd anon-func instr->objRef: %lx(only obj_ref)\n", instr->addr, instr->objRef);
+		fprintf(stderr, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~ to entry %d\n", funcObjTableEntry1->id);
+#endif
+				al_add(funcObjTableEntry1->func_objs, (void *)(instr->objRef));
+#if TABLE_DEBUG
+		printFuncObjTable(funcObjTable);
+#endif
+			}
+			//otherwise, create and add the new entry (and create a name for the function)
+			else{
+#if TABLE_DEBUG
+		fprintf(stderr, "~~~~~~~~~~~~~~~~~~~~~~~~~~~~instr: %lx\tadd anon-func #%d instr->objRef: %lx\n", instr->addr, anonfunobjctl, instr->objRef);
+#endif
+				str = (char *)malloc(strlen(anonfunobj_str)+5);
+				assert(str);
+				sprintf(str, "%s%d", anonfunobj_str, anonfunobjctl++);
+				funcObjTableEntry1 = createFuncObjTableEntry();
+				funcObjTableEntry1->func_name = str;
+				funcObjTableEntry1->anonfunobj_instr_addr = instr->addr;
+				al_add(funcObjTableEntry1->func_objs, (void *)(instr->objRef));
+				assert(!findFuncObjTableEntryByFuncObj(funcObjTable, instr->objRef));
+				FE_SET_FLAG(funcObjTableEntry1, FE_IS_ANONFUNOBJ);
+				al_add(funcObjTable, funcObjTableEntry1);
+				str=NULL;
+#if TABLE_DEBUG
+		printFuncObjTable(funcObjTable);
+#endif
+			}
+		}
+	}//end for-loop
+	return funcObjTable;
+}
+

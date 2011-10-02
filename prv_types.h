@@ -49,6 +49,9 @@ typedef enum {
 #define	INSTR_BRANCH_TAKEN			(1<<11)
 #define	INSTR_BRANCH_NOT_TAKEN		(1<<12)
 
+#define INSTR_IS_FUNC_START_IN_SLICE	(1<<13)
+#define INSTR_IS_FUNC_END_IN_SLICE		(1<<14)
+
 #define	INSTR_IS_BBL_START			(1<<15)
 #define INSTR_IS_BBL_END			(1<<16)
 
@@ -87,6 +90,8 @@ typedef struct Instruction{
 	int			jmpOffset;
 	BasicBlock 	*inBlock;
 	BasicBlock 	*nextBlock;			//only used when INSTR_IS_BBL_END
+
+	ADDRESS		inFunction;			//filled in inbuildFunctionCFGs()
 }Instruction;
 
 typedef struct InstrList {
@@ -126,6 +131,8 @@ struct BasicBlock{
 
     uint32_t flags;
     struct BasicBlock *calltarget; // this is assigned in several cases but not actually used
+
+    ADDRESS inFunction;			//filled in doSearchFuncBody()
 };
 
 
@@ -201,7 +208,8 @@ typedef struct Function{
 	uint32_t flags;
 	int		args;
 	ADDRESS	funcEntryAddr;
-	ADDRESS	funcObj;
+	//ADDRESS	funcObj;
+	ArrayList *funcObj;
 	BasicBlock *funcEntryBlock;
 	char *funcName;
 	ArrayList *funcBody;		//a CFG of this function, which is a list of BasicBlocks belongs to this function

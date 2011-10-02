@@ -30,6 +30,7 @@ Instruction *InstrCreate(void) {
     new->jmpOffset = 0;
     new->nextBlock= NULL;
     new->inBlock = NULL;
+    new->inFunction = 0;
     return (new);
 }
 
@@ -282,7 +283,7 @@ bool isNativeInvokeInstruction(InstrList *iList, Instruction *ins){
 	assert(ins);
 	Instruction *next;
 	//eval will create a new frame
-	if(!isInvokeInstruction(iList,ins) || !strcmp(ins->opName, "eval"))
+	if(!isInvokeInstruction(iList,ins))
 		return false;
 	ADDRESS nextInstrAddr = ins->addr + ins->length;
 	if(!(next=getInstruction(iList, ins->order+1)))
@@ -339,12 +340,14 @@ void printInstruction(Instruction *ins){
 			ins->stackUse, ins->stackDef, ins->localUse, ins->localDef, \
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId
 	);*/
-	printf("%c%c%c%c $%d$ #%u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+	printf("%c%c%c%c%c $%d$ &%lx& #%u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+			INSTR_HAS_FLAG(ins,INSTR_ON_EVAL)?'e':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IN_SLICE)?'*':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_START)?'S':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_END)?'E':' ',
 			INSTR_HAS_FLAG(ins,INSTR_BRANCH_TAKEN)?'1':INSTR_HAS_FLAG(ins,INSTR_BRANCH_NOT_TAKEN)?'0':' ',
 			ins->inBlock?ins->inBlock->id:-1,
+			ins->inFunction,
 			ins->order, ins->addr,	ins->opName,
 			ins->stackUseStart, ins->stackUseStart==0?0:ins->stackUseStart+(PTRSIZE * ins->stackUse)-1,
 			ins->stackDefStart, ins->stackDefStart==0?0:ins->stackDefStart+(PTRSIZE * ins->stackDef)-1,

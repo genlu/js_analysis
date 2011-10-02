@@ -55,23 +55,21 @@ void test(void){
 }
 
 #define BASIC		0
-#define	DECOMPILE	0
-#define SLICE		1
+#define	DECOMPILE	1
+#define SLICE		0
 
 int main (int argc, char *argv[]) {
 
     InstrList *iList = NULL;
-    int slicing_begin;
     int reducible;
     int i,j;
 
-    if(argc != 3) {
-        printf("usage: js_analysis <js_trace file> <slicing_begin>\n");
+    if(argc != 2) {
+        printf("usage: js_analysis <js_trace file>\n");
         return(-1);
     }
 
     initSys();
-    slicing_begin = atoi(argv[2]);
     //test();
 
     //create instruction list
@@ -148,6 +146,7 @@ int main (int argc, char *argv[]) {
     ArrayList *funcCFGs;
     ArrayList *funcSyntaxTree;
     SyntaxTreeNode *funcSyntaxTreeNode;
+	ArrayList *funcObjTable;
 
     printf("processEvaledInstr...\n");
     processEvaledInstr(iList);
@@ -159,7 +158,7 @@ int main (int argc, char *argv[]) {
 	//printBasicBlockList(funcBlockList);
     printInstrList(iList);
     printf("building function CFGs...\n");
-    funcCFGs = buildFunctionCFGs(iList, funcBlockList);
+    funcCFGs = buildFunctionCFGs(iList, funcBlockList, &funcObjTable);
 
 	//printBasicBlockList(funcBlockList);
     //printInstrList(iList);
@@ -199,11 +198,10 @@ int main (int argc, char *argv[]) {
     printNaturalLoopList(funcLoopList);
 
 
-
     //printInstrList(iList);
     //printBasicBlockList(funcBlockList);
     printf("Building syntax tree...\n");
-    funcSyntaxTree = buildSyntaxTree(iList, funcBlockList, funcLoopList, funcCFGs);
+    funcSyntaxTree = buildSyntaxTree(iList, funcBlockList, funcLoopList, funcCFGs, funcObjTable);
 
 	//print all function info
 	Function *func;
@@ -246,11 +244,10 @@ int main (int argc, char *argv[]) {
     ArrayList *funcCFGs, *sliceFuncCFGs;
     ArrayList *loopList, *sliceLoopList;
     InstrList *sliceInstrList;
-
+	ArrayList *funcObjTable;
 
     ArrayList *sliceSyntaxTree;
     SyntaxTreeNode *sliceSyntaxTreeNode;
-
 
     printf("processEvaledInstr...\n");
     processEvaledInstr(iList);
@@ -260,23 +257,24 @@ int main (int argc, char *argv[]) {
     blockList = buildDynamicCFG(iList);
     //create functions list (separate them from main procedure)
     printf("construct functions list from the CFG of entire trace...\n");
-    funcCFGs = buildFunctionCFGs(iList, blockList);
+    funcCFGs = buildFunctionCFGs(iList, blockList, &funcObjTable);
     //find dominators for each node (basicBlock)
     findDominators(blockList);
     //build a DFS-Tree on CFG(tree edges are marked)
     buildDFSTree(blockList);
+    //printInstrList(iList);
+
+
+    /*
+     * now do the d-slicing
+     */
+    deobfSlicing(iList);
+
+
+    ArrayList *funcStartInstrList;		//a list of function start instructions in the slice
+    funcStartInstrList = findFuncStartInstrsInSlice(iList);
 
     printInstrList(iList);
-
-
-	//do the dynamic slicing based on instruction specified by 'slicing_begin'
-    //todo: need to do d-slicing on all the native calls not contribute to eval
-    SlicingState *state = initSlicingState(iList, slicing_begin/*30 53*/);
-    //testUD(iList,state);
-    //todo
-    markUDchain(iList, state);
-    //printSlicingState(state);
-    checkSlice(iList);
 
     /*todo: big change here
     1. find all function entry instrs: 1st instr after a non-native call (1 per function/eval)
@@ -298,6 +296,7 @@ int main (int argc, char *argv[]) {
     printf("InstrListClone\n");
     sliceInstrList = InstrListClone(iList, INSTR_IN_SLICE);
 
+    /*
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     printf("build CFG for slice..\n");
@@ -326,7 +325,7 @@ int main (int argc, char *argv[]) {
     else
     	printf("NOT REDUCIBLE\n");
 
-    printInstrList(sliceInstrList);
+   // printInstrList(sliceInstrList);
     //printBasicBlockList(sliceBlockList);
     sliceLoopList = buildNaturalLoopList(sliceBlockList);
     // printNaturalLoopList(sliceLoopList);
@@ -343,16 +342,16 @@ int main (int argc, char *argv[]) {
     	printSyntaxTreeNode(sliceSyntaxTreeNode);
     }
 
-    destroySlicingState(state);
     destroyNaturalLoopList(sliceLoopList);
 	destroyBasicBlockList(sliceBlockList);
     InstrListDestroy(sliceInstrList, 1);
 
+    */
     /*
      * done slice CFG ^^^
      */
 
-
+	al_freeWithElements(funcObjTable);
 	destroyBasicBlockList(blockList);
 #endif
 

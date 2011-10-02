@@ -179,11 +179,14 @@ void testUD(InstrList *iList, SlicingState *state){
 	}
 }
 
+
+
 #define INCLUDE_DATA_DEP	1
 #define INCLUDE_CTRL_DEP	1
 
+#define UDPRINTF(a) 		//printf a
 
-void markUDchain(InstrList *iList, SlicingState *state){
+void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 	assert(iList && state);
 	Instruction *instr;
 	WriteSet *memDef, *memUsed, *memTemp;
@@ -198,7 +201,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 	int *i = &(state->currect_instr);
 	instr=getInstruction(iList,(*i));
 	//Starting instruction should be included in UD chain
-	INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
+	INSTR_SET_FLAG(instr, flag);
 
 	/*
 	 * to make decompiler work correctly, we have to
@@ -211,7 +214,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 		//printf("lsls: %d\n", tempInt);
 		instr=getInstruction(iList,++tempInt);
 		if(!isBranch(iList, instr) && !isInvokeInstruction(iList, instr)){
-			INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
+			INSTR_SET_FLAG(instr, flag);
 		}else{
 			break;
 		}
@@ -221,7 +224,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 
 	// put instr into currentFrame
 	InstrListAdd(currentFrame, instr);
-	printf("Mark UD for instr#%d\n", (*i));
+	//printf("Mark UD for instr#%d\n", (*i));
 
 	//start from the instruction state->currect_instr-1
 	while((*i)-- > 0){
@@ -257,7 +260,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 		// if s is a invocation instr
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE)){
 			if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
-				printf("script invoke #%d\n", instr->order);
+				UDPRINTF(("script invoke #%d\n", instr->order));
 				state->lastFrame = (InstrList *)popOpStack(state->stack);
 				assert(state->lastFrame);
 			}
@@ -278,7 +281,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && instr->opCode!=JSOP_EVAL){
 			assert(state->lastFrame);
 			if(InstrListLength(state->lastFrame)>0){
-				printf("adding %d as a control dep(invoke)\n", instr->order);
+				UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
 				add_flag++;
 				//put instr into currentFrame
 				InstrListAdd(currentFrame, instr);
@@ -297,7 +300,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
 				Instruction *tempInstr = getInstruction(currentFrame, jj);
 				if(tempInstr->inBlock->id == nextBlock){
 					if(!add_flag)
-						printf("adding %d as a control dep(jump)\n", instr->order);
+						UDPRINTF(("adding %d as a control dep(jump)\n", instr->order));
 					add_flag++;
 					InstrListRemove(currentFrame, tempInstr);
 					jj--;
@@ -317,7 +320,7 @@ void markUDchain(InstrList *iList, SlicingState *state){
             WriteSetDestroy(state->memLive);
             state->memLive = NULL;
             state->memLive = memTemp;
-			printf("adding %d as a data dep\n", instr->order);
+            UDPRINTF(("adding %d as a data dep\n", instr->order));
 		}
 		if(propDef){
 			//instr i define some property in liveSet, remove it from liveSet
@@ -325,14 +328,14 @@ void markUDchain(InstrList *iList, SlicingState *state){
 				add_flag++;
 				propTemp = al_remove(state->propsLive->propSet, propDef);
 				propFree(propTemp);
-				printf("adding %d as a data dep\n", instr->order);
+				UDPRINTF(("adding %d as a data dep\n", instr->order));
 			}
 		}
 #endif   //end #if INCLUDE_DATA_DEP
 
 		if(add_flag){
 			//put this instr in UD chain
-			INSTR_SET_FLAG(instr, INSTR_IN_SLICE);
+			INSTR_SET_FLAG(instr, flag);
 			// put instr into currentFrame
 			InstrListAdd(currentFrame, instr);
 
@@ -379,6 +382,114 @@ void checkSlice(InstrList *iList){
 			}
 		}
 	}
-
 }
+
+
+#define DEOBFSLICING_PRINT 0
+void deobfSlicing(InstrList *iList){
+
+	int i;
+	Instruction *instr;
+
+	//1. label all the native calls contribute to eval'ed string using INSTR_ON_EVAL flag
+
+	 for(i=InstrListLength(iList)-1;i>=0;i--){
+		instr = getInstruction(iList, i);
+		if(instr->opCode!=JSOP_EVAL)
+			continue;
+	    SlicingState *state = initSlicingState(iList,i);
+	    markUDchain(iList, state, INSTR_ON_EVAL);	//it doestn't matter that markUDchian does't trace on eval()
+	    											//since we are actually tracing back on each eval() in this loop
+	    destroySlicingState(state);
+	}
+#if DEOBFSLICING_PRINT
+	printf("\n*********************************************************************************\n");
+	printf("instrs after INSTR_ON_EVAL\n");
+	printf("*********************************************************************************\n");
+    printInstrList(iList);
+#endif
+	//2. d-slicing on all native calls not labeled by INSTR_ON_EVAL
+	for(i=InstrListLength(iList)-1;i>=0;i--){
+		instr = getInstruction(iList, i);
+		if(!INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_ON_EVAL))
+			continue;
+#if DEOBFSLICING_PRINT
+		printf("d-slicing on instr# %d\n", i);
+#endif
+	    SlicingState *state = initSlicingState(iList,i);
+	    markUDchain(iList, state, INSTR_IN_SLICE);
+	    destroySlicingState(state);
+	}
+#if DEOBFSLICING_PRINT
+	printf("\n*********************************************************************************\n");
+	printf("instrs after INSTR_IN_SLICE\n");
+	printf("*********************************************************************************\n");
+    printInstrList(iList);
+#endif
+
+    checkSlice(iList);
+}
+
+
+/*
+ * for each function, find its starting addr (the addr of its first instr in slice)
+ * based on the fact that the very first instruction in the function  we encountered in the slice
+ * has to be the 1st instruction in that function.
+ */
+ArrayList *findFuncStartInstrsInSlice(InstrList *iList){
+	int i, size;
+	Instruction *instr, *lastInstr;
+	ArrayList *funcObjList = al_newInt(AL_LIST_SET);
+	ArrayList *retList = al_newInt(AL_LIST_SET);
+
+	size = InstrListLength(iList);
+	lastInstr=NULL;
+	for(i=0;i<size;i++){
+		instr = getInstruction(iList, i);
+		if(!INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			continue;
+		if(!lastInstr){
+			al_add(funcObjList, (void *) instr->inFunction);
+			al_add(retList, (void *) instr->addr);
+			lastInstr = instr;
+			continue;
+		}
+		if(lastInstr->inFunction!= instr->inFunction){
+			if(!al_contains(funcObjList, (void *) instr->inFunction)){
+				al_add(funcObjList, (void *) instr->inFunction);
+				al_add(retList, (void *) instr->addr);
+			}
+			lastInstr = instr;
+			continue;
+		}
+	}
+	al_free(funcObjList);
+
+	printf("func Start Instrs In Slice:\t");
+	for(i=0;i<al_size(retList);i++){
+		ADDRESS temp = (ADDRESS)al_get(retList,i);
+		printf("%lx\t", temp);
+	}
+	printf("\n");
+
+	return retList;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

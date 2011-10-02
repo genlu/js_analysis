@@ -273,28 +273,7 @@ StackNode *popSyntaxStack(SyntaxStack *stack);
 void pushSyntaxStack(SyntaxStack *stack, StackNode *node);
 SyntaxStack *createSyntaxStack(void);
 
-/*********************************************************************************/
 
-typedef struct FuncObjTableEntry{
-	int				id;
-	uint32_t 		flags;
-	ADDRESS			func_addr;
-	ADDRESS			anonfunobj_instr_addr;
-	char 			*func_name;
-	Function		*func_struct;
-	ArrayList 		*func_objs;
-}FuncObjTableEntry;
-
-#define	FE_IS_ANONFUNOBJ			(1<<0)
-
-#define	FE_SET_FLAG(fe, flag)		(fe->flags |= flag)
-#define	FE_CLR_FLAG(fe, flag)		(fe->flags &= ~flag)
-#define	FE_HAS_FLAG(fe, flag)		(fe->flags & flag)
-
-FuncObjTableEntry *createFuncObjTableEntry(void);
-void destroyFuncObjTableEntry(void *entry);
-
-/*********************************************************************************/
 
 
 /*********************************************************************************/
@@ -313,7 +292,7 @@ SyntaxTreeNode *createSyntaxTreeNode();
 void destroySyntaxTreeNode(SyntaxTreeNode *node);
 int SyntaxTreeNodeCompareByBlockID(void *i1, void *i2);
 SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funObjTable, ArrayList *funcCFGs);
-ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs);
+ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs, ArrayList *funcObjTable);
 
 
 SyntaxTreeNode *findAdjacentStatement(ArrayList *syntaxTree, SyntaxTreeNode *node);

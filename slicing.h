@@ -28,8 +28,11 @@ void destroyPropSet(SlicingPropSet *set);
 SlicingState *initSlicingState(InstrList *iList, int order);
 void destroySlicingState(SlicingState *state);
 void printSlicingState(SlicingState *state);
-void markUDchain(InstrList *iList, SlicingState *state);
+void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag);
 void checkSlice(InstrList *iList);
+
+void deobfSlicing(InstrList *iList);
+ArrayList *findFuncStartInstrsInSlice(InstrList *iList);
 
 void testUD(InstrList *iList, SlicingState *state);
 

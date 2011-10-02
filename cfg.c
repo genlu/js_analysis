@@ -313,6 +313,7 @@ BasicBlock *createBasicBlock(void){
 	new->immDomSuccs = NULL;
 	new->type = BT_UNKNOWN;
 	new->flags = 0;
+	new->inFunction = 0;
 	assert(new->preds && new->succs);
 	return new;
 }
