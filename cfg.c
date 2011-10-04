@@ -1327,7 +1327,7 @@ BasicBlock *findBasicBlockInFunctionCFGs(ArrayList *funcCFGs, int id, Function *
 				printf("found!\n");
 				ret = block;
 				*ret_func = func;
-				printf("%lx\n", *ret_func);
+				//printf("%lx\n", *ret_func);
 				return ret;
 			}
 		}
@@ -1458,7 +1458,7 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList, ArrayList *func
 		for(i=0;i<listSize;i++){
 			tempBlock = (BasicBlock *)al_get(concatList, i);
 			tempBlock2 = findBasicBlockInFunctionCFGs(funcCFGs, tempBlock->id, &func);
-			printf("%lx\n", func);
+			//printf("%lx\n", func);
 			assert(tempBlock2);assert(func);
 			al_remove(func->funcBody, (void *)tempBlock2);
 			assert(tempBlock == tempBlock2);

@@ -184,6 +184,7 @@ void testUD(InstrList *iList, SlicingState *state){
 #define INCLUDE_DATA_DEP	1
 #define INCLUDE_CTRL_DEP	1
 
+
 #define UDPRINTF(a) 		//printf a
 
 void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
@@ -282,6 +283,13 @@ void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 			assert(state->lastFrame);
 			if(InstrListLength(state->lastFrame)>0){
 				UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
+
+				int in;
+				for(in=0;in<InstrListLength(state->lastFrame);in++){
+					UDPRINTF(("#%d ", getInstruction(state->lastFrame,in)->order));
+				}
+				UDPRINTF(("\n"));
+
 				add_flag++;
 				//put instr into currentFrame
 				InstrListAdd(currentFrame, instr);
@@ -407,7 +415,10 @@ void deobfSlicing(InstrList *iList){
 	printf("instrs after INSTR_ON_EVAL\n");
 	printf("*********************************************************************************\n");
     printInstrList(iList);
+
+    printf("###############################slicing#################################\n");
 #endif
+
 	//2. d-slicing on all native calls not labeled by INSTR_ON_EVAL
 	for(i=InstrListLength(iList)-1;i>=0;i--){
 		instr = getInstruction(iList, i);

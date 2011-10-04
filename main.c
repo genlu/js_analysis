@@ -55,8 +55,8 @@ void test(void){
 }
 
 #define BASIC		0
-#define	DECOMPILE	1
-#define SLICE		0
+#define	DECOMPILE	0
+#define SLICE		1
 
 int main (int argc, char *argv[]) {
 
