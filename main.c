@@ -240,10 +240,9 @@ int main (int argc, char *argv[]) {
 
     PrintInfo(2);
 
-    ArrayList *blockList, *sliceBlockList;
-    ArrayList *funcCFGs, *sliceFuncCFGs;
-    ArrayList *loopList, *sliceLoopList;
-    InstrList *sliceInstrList;
+    ArrayList *blockList;
+    ArrayList *funcCFGs;
+    ArrayList *loopList;
 	ArrayList *funcObjTable;
 
     ArrayList *sliceSyntaxTree;
@@ -271,8 +270,8 @@ int main (int argc, char *argv[]) {
     deobfSlicing(iList);
 
 
-    ArrayList *funcStartInstrList;		//a list of function start instructions in the slice
-    funcStartInstrList = findFuncStartInstrsInSlice(iList);
+/*    ArrayList *funcStartInstrList;		//a list of function start instructions in the slice
+    funcStartInstrList = findFuncStartInstrsInSlice(iList);*/
 
     printInstrList(iList);
 
@@ -293,45 +292,21 @@ int main (int argc, char *argv[]) {
     */
 
     //after above steps, we could get a list of headers, and construct slice CFG based on them
-    printf("InstrListClone\n");
-    sliceInstrList = InstrListClone(iList, INSTR_IN_SLICE);
-
-    /*
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    printf("build CFG for slice..\n");
-    //labelInstructionList(sliceList);		//no need for this if we keep all the instruction type flags
-    sliceBlockList = buildDynamicCFG(sliceInstrList);
+/*    printf("InstrListClone\n");
+    sliceInstrList = InstrListClone(iList, INSTR_IN_SLICE);*/
 
 
-    //printInstrList(sliceList);
-   // printBasicBlockList(sliceBlockList);
-
-    printf("build function CFGs for slice...\n");
-    sliceFuncCFGs = buildFunctionCFGs(sliceInstrList, sliceBlockList);
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-    //printInstrList(iList);
-
-    printf("calculate dominator information...\n");
-    findDominators(sliceBlockList);
-    buildDFSTree(sliceBlockList);
-    reducible = findBackEdges(sliceBlockList);
+    processANDandORExps(iList, blockList, funcCFGs);
+    reducible = findBackEdges(blockList);
     if(reducible)
     	printf("REDUCIBLE\n");
     else
     	printf("NOT REDUCIBLE\n");
+    loopList = buildNaturalLoopList(blockList);
+    printNaturalLoopList(loopList);
 
-   // printInstrList(sliceInstrList);
-    //printBasicBlockList(sliceBlockList);
-    sliceLoopList = buildNaturalLoopList(sliceBlockList);
-    // printNaturalLoopList(sliceLoopList);
-
-    printf("build syntax tree for slice...\n");
-    sliceSyntaxTree=buildSyntaxTree(sliceInstrList,sliceBlockList, sliceLoopList, sliceFuncCFGs);
+    printf("Building syntax tree...\n");
+    sliceSyntaxTree = buildSyntaxTree(iList, blockList, loopList, funcCFGs, funcObjTable);
 
     printf("\nTransform syntax tree...\n");
     transformSyntaxTree(sliceSyntaxTree);
@@ -342,16 +317,10 @@ int main (int argc, char *argv[]) {
     	printSyntaxTreeNode(sliceSyntaxTreeNode);
     }
 
-    destroyNaturalLoopList(sliceLoopList);
-	destroyBasicBlockList(sliceBlockList);
-    InstrListDestroy(sliceInstrList, 1);
-
-    */
-    /*
-     * done slice CFG ^^^
-     */
 
 	al_freeWithElements(funcObjTable);
+    destroyNaturalLoopList(loopList);
+    destroyFunctionCFGs(funcCFGs);
 	destroyBasicBlockList(blockList);
 #endif
 

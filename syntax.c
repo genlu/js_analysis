@@ -692,6 +692,11 @@ void buildBlockSyntaxTreeFromSyntaxStack(SyntaxTreeNode *syntaxBlockNode, Syntax
 	return;
 }
 
+/*
+ * macros to label nodes in slice
+ */
+#define LABEL_EXP(exp_node) 	EXP_SET_FLAG(exp_node, EXP_IN_SLICE)
+#define LABEL_SYN(syn_node) 	TN_SET_FLAG(syn_node, TN_IN_SLICE)
 
 SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funcObjTable, ArrayList *funcCFGs){
 
@@ -772,6 +777,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				expTreeNode1->type = EXP_CONST_VALUE;
 				expTreeNode1->u.const_value_bool = true;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
+				//put node into slice, if and is in slice
+				if(INSTR_HAS_FLAG(lastInstr, INSTR_IN_SLICE))
+					LABEL_EXP(expTreeNode1);
 				stackNode1 = createSyntaxStackNode();
 				stackNode1->type = EXP_NODE;
 				stackNode1->node = (void *)expTreeNode1;
@@ -781,6 +789,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				expTreeNode1->type = EXP_CONST_VALUE;
 				expTreeNode1->u.const_value_bool = false;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
+				//put node into slice, if or is in slice
+				if(INSTR_HAS_FLAG(lastInstr, INSTR_IN_SLICE))
+					LABEL_EXP(expTreeNode1);
 				stackNode1 = createSyntaxStackNode();
 				stackNode1->type = EXP_NODE;
 				stackNode1->node = (void *)expTreeNode1;
@@ -794,7 +805,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		andOrTarget = searchForTarget(targetTable, instr->addr);
 		if(andOrTarget && andOrTarget->num>0){
 			printf("found one! %lx, %d\n", andOrTarget->targetAddr, andOrTarget->num);
-			//printf("number of synbol in stack: %d\n", stack->number);
+			//printf("number of symbol in stack: %d\n", stack->number);
 			assert(stack->number>=2*andOrTarget->num);
 			StackNode *ptr = NULL;
 			for(j=0;j<andOrTarget->num;j++){
@@ -827,7 +838,14 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				ptr->type = EXP_NODE;
 				ptr->node = (void *)expTreeNode4;
 				pushSyntaxStack(stack, ptr);
+				//slice lableing xxx
+				if(EXP_HAS_FLAG(expTreeNode2, EXP_IN_SLICE)){
+					//LABEL_EXP(expTreeNode1);
+					//LABEL_EXP(expTreeNode3);
+					LABEL_EXP(expTreeNode4);
+				}
 				//clean-up
+				destroyExpTreeNode(expTreeNode2);
 				expTreeNode1 = expTreeNode2 = expTreeNode3 = expTreeNode4 = NULL;
 				ptr = NULL;
 			}//end of for
@@ -909,6 +927,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -980,6 +1000,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -999,6 +1021,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode2;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode2);
+			}
 			pushSyntaxStack(stack, stackNode2);
 			destroySyntaxStackNode(stackNode1);
 			break;
@@ -1046,6 +1071,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -1074,6 +1101,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -1102,6 +1131,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -1166,6 +1197,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode3 = createSyntaxStackNode();
 			stackNode3->type = EXP_NODE;
 			stackNode3->node = (void *)expTreeNode3;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode3);
 			pushSyntaxStack(stack, stackNode3);
 			destroySyntaxStackNode(stackNode1);
 			destroySyntaxStackNode(stackNode2);
@@ -1236,6 +1269,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode3;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode2);
+				LABEL_EXP(expTreeNode3);
+			}
 			pushSyntaxStack(stack, stackNode2);
 			destroySyntaxStackNode(stackNode1);
 			break;
@@ -1262,6 +1299,11 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode4->type =  EXP_PROP;
 			expTreeNode4->u.prop.objName = expTreeNode2;
 			expTreeNode4->u.prop.propName = expTreeNode3;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode3);
+				LABEL_EXP(expTreeNode4);
+			}
 			expTreeNode2 = expTreeNode3 = NULL;
 			//finally, create a EXP_BIN node for assignment
 			expTreeNode2 = createExpTreeNode();
@@ -1269,6 +1311,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode2->u.bin_op.lval = expTreeNode4;
 			expTreeNode2->u.bin_op.rval = expTreeNode1;
 			expTreeNode2->u.bin_op.op = OP_ASSIGN;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode2);
+			}
 			//push it into stack
 			stackNode3 = createSyntaxStackNode();
 			stackNode3->type = EXP_NODE;
@@ -1305,6 +1351,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode1);
+			}
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -1349,6 +1399,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			assert(stackNode1->type == EXP_NODE);
 			expTreeNode2 = (ExpTreeNode *)stackNode1->node;
 			if(EXP_HAS_FLAG(expTreeNode2, EXP_IS_NULL)){
+				destroyExpTreeNode(expTreeNode2);
 				stackNode3 = popSyntaxStack(stack);
 				assert(stackNode3);
 				assert(stackNode3->type == EXP_NODE);
@@ -1361,6 +1412,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode1;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode1);
+			}
 			pushSyntaxStack(stack, stackNode2);
 			destroySyntaxStackNode(stackNode1);
 			break;
@@ -1377,6 +1432,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode3 = createSyntaxStackNode();
 			stackNode3->type = EXP_NODE;
 			stackNode3->node = (void *)expTreeNode4;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode4);
+			}
 			pushSyntaxStack(stack, stackNode3);
 			//XXX caution, non-break, fall-through to JSOP_GETPROP
 		case JSOP_GETPROP:
@@ -1386,7 +1445,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = popSyntaxStack(stack);			//obj
 			assert(stackNode1->type == EXP_NODE);
 			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
-			//create a EXP_NAME node fpr prop name
+			//create a EXP_NAME node for prop name
 			expTreeNode2 = createExpTreeNode();
 			expTreeNode2->type =  EXP_NAME;
 			if(instr->opCode==JSOP_GETPROP || instr->opCode==JSOP_CALLPROP || instr->opCode==JSOP_GETTHISPROP){
@@ -1408,6 +1467,11 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode3;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode2);
+				LABEL_EXP(expTreeNode3);
+			}
 			pushSyntaxStack(stack, stackNode2);
 			destroySyntaxStackNode(stackNode1);
 			break;
@@ -1436,6 +1500,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode3 = createSyntaxStackNode();
 			stackNode3->type = EXP_NODE;
 			stackNode3->node = (void *)expTreeNode3;
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode3);
+
 			pushSyntaxStack(stack, stackNode3);
 			destroySyntaxStackNode(stackNode1);
 			destroySyntaxStackNode(stackNode2);
@@ -1450,6 +1518,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode1->u.array_init.initValues = al_new();
 			expTreeNode1->u.array_init.size = 0;
 			EXP_SET_FLAG(expTreeNode1, EXP_IS_PROP_INIT);
+			//label slice
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_EXP(expTreeNode1);
 			//push it
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
@@ -1485,6 +1556,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				expTreeNode4->u.bin_op.rval = expTreeNode2;
 				expTreeNode4->u.bin_op.op = OP_INITPROP;
 				al_add(expTreeNode3->u.array_init.initValues, expTreeNode1);
+				//label slice
+				if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+					LABEL_EXP(expTreeNode4);
 			}
 			expTreeNode3->u.array_init.size++;
 			//push it
@@ -1526,6 +1600,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			//printf("num_edges: %d\n", al_size(block->succs));
 			for(tempInt=0;tempInt<al_size(block->succs);tempInt++){
 				edge = (BlockEdge *)al_get(block->succs, tempInt);
+				sTreeNode2=NULL;
 				/*
 				 * one of the paths could be missing from dynamic trace
 				 * if that's the case, corresponding pointer stays NULL
@@ -1552,7 +1627,11 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 						al_add(sTreeNode1->u.if_else.if_path, (void *)sTreeNode2);
 					}
 				}
+				if(sTreeNode2 && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+					LABEL_SYN(sTreeNode2);
 			}
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_SYN(sTreeNode1);
 			//push it
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = SYN_NODE;
@@ -1571,6 +1650,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = SYN_NODE;
 			stackNode1->node = (void *)sTreeNode1;
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_SYN(sTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
 
@@ -1584,6 +1665,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				stackNode1 = createSyntaxStackNode();
 				stackNode1->type = SYN_NODE;
 				stackNode1->node = (void *)sTreeNode1;
+				if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+					LABEL_SYN(sTreeNode1);
 				pushSyntaxStack(stack, stackNode1);
 			}
 			break;
@@ -1601,6 +1684,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1 = createSyntaxTreeNode();
 			sTreeNode1->type = TN_RETEXP;
 			sTreeNode1->u.expNode = expTreeNode1;
+
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_SYN(sTreeNode1);
 			//push it
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = SYN_NODE;
@@ -1625,6 +1711,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1 = createSyntaxTreeNode();
 			sTreeNode1->type = TN_DEFVAR;
 			sTreeNode1->u.expNode = expTreeNode1;
+
+			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				LABEL_SYN(sTreeNode1);
 			//push it
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = SYN_NODE;
@@ -1682,6 +1771,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		sTreeNode1 = createSyntaxTreeNode();
 		sTreeNode1->type = TN_GOTO;
 		sTreeNode1->u.go_to.targetBlock = edge->head;
+		LABEL_SYN(sTreeNode1);
 		stackNode1 = createSyntaxStackNode();
 		stackNode1->type = SYN_NODE;
 		stackNode1->node = (void *)sTreeNode1;

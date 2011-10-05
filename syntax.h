@@ -81,7 +81,7 @@ typedef enum{
 	EXP_ARRAY_INIT,		//and array initialzation struct, as [1,2,3...], contains a list of
 	EXP_PROP,		//contain 2 children, one is the name/prep represent obj, other is name represent prop
 	EXP_EVAL,
-	EXP_TOKEN		// this is for processing AND/OR instructions, serve as a temp token in the espression stack
+	EXP_TOKEN		// this is for processing AND/OR instructions, serve as a temp token in the expression stack
 } ExpTreeNodeType;
 
 typedef struct ExpTreeNode ExpTreeNode;
@@ -154,6 +154,9 @@ struct ExpTreeNode{
 #define EXP_IS_PROP_INIT		(1<<5)
 #define EXP_IS_NULL				(1<<6)
 #define EXP_IS_REGEXP			(1<<7)
+
+
+#define EXP_IN_SLICE			(1<<16)
 
 
 #define	EXP_SET_FLAG(exp, flag)		(exp->flags |= flag)
@@ -241,6 +244,9 @@ struct SyntaxTreeNode{
 #define	TN_AFTER_RELINK_GOTO			(1<<4)	//this flag indicates that syntax node id should be uesd in printed label
 #define TN_IS_LOOP_HEADER				(1<<5)
 #define TN_DONE_MOVE					(1<<6)
+
+
+#define TN_IN_SLICE						(1<<16)
 
 #define	TN_SET_FLAG(tn, flag)		(tn->flags |= flag)
 #define	TN_CLR_FLAG(tn, flag)		(tn->flags &= ~flag)
