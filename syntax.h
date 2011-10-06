@@ -13,6 +13,9 @@
 #include "array_list.h"
 #include "writeSet.h"
 
+#define PRINT_ALL	0
+#define PRINT_SLICE	1
+
 
 typedef struct SyntaxStack SyntaxStack;
 
@@ -291,14 +294,14 @@ void destroySyntaxStackNode(StackNode *node );
 SyntaxStack *createSyntaxStack(void);
 void stackTest();
 
-void printSyntaxTreeNode(SyntaxTreeNode *node);
+void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag);
 ExpTreeNode *createExpTreeNode();
 void destroyExpTreeNode(ExpTreeNode *node);
 SyntaxTreeNode *createSyntaxTreeNode();
 void destroySyntaxTreeNode(SyntaxTreeNode *node);
 int SyntaxTreeNodeCompareByBlockID(void *i1, void *i2);
-SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funObjTable, ArrayList *funcCFGs);
-ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs, ArrayList *funcObjTable);
+SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funObjTable, ArrayList *funcCFGs, int slice_flag);
+ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs, ArrayList *funcObjTable, int slice_flag);
 
 
 SyntaxTreeNode *findAdjacentStatement(ArrayList *syntaxTree, SyntaxTreeNode *node);

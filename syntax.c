@@ -223,7 +223,11 @@ bool expIsTrue(ExpTreeNode *node){
 	return ret;
 }
 
-void printExpTreeNode(ExpTreeNode *node){
+void printExpTreeNode(ExpTreeNode *node, int slice_flag){
+
+#define	EXP_PRINTF(s)	do{if(!slice_flag || (slice_flag && EXP_HAS_FLAG(node, EXP_IN_SLICE)))printf s ;}while(0)
+
+
 	int i;
 	ExpTreeNode *expNode;
 
@@ -237,187 +241,190 @@ void printExpTreeNode(ExpTreeNode *node){
 	switch(node->type){
 	case EXP_NAME:
 		if(node->u.name)
-			printf("%s", node->u.name);
+			EXP_PRINTF(("%s", node->u.name));
 		else
-			printf("undefined");
+			EXP_PRINTF(("undefined"));
 		break;
 	case EXP_CONST_VALUE:
 		if(EXP_HAS_FLAG(node, EXP_IS_INT)){
-			printf("%ld", node->u.const_value_int);
+			EXP_PRINTF(("%ld", node->u.const_value_int));
 		}else if(EXP_HAS_FLAG(node, EXP_IS_DOUBLE)){
-			printf("%f", node->u.const_value_double);
+			EXP_PRINTF(("%f", node->u.const_value_double));
 		}else if(EXP_HAS_FLAG(node, EXP_IS_STRING)){
-			printf("\"%s\"", node->u.const_value_str);
+			EXP_PRINTF(("\"%s\"", node->u.const_value_str));
 		}else if(EXP_HAS_FLAG(node, EXP_IS_REGEXP)){
-			printf("%s", node->u.const_value_str);
+			EXP_PRINTF(("%s", node->u.const_value_str));
 		}else if(EXP_HAS_FLAG(node, EXP_IS_BOOL)){
-			printf("%s", (node->u.const_value_bool==true)?"true":"false");
+			EXP_PRINTF(("%s", (node->u.const_value_bool==true)?"true":"false"));
 		}
 		break;
 	case EXP_CALL:
 	case EXP_EVAL:
 		if(node->type==EXP_CALL){
-			printExpTreeNode(node->u.func.name);
+			printExpTreeNode(node->u.func.name, slice_flag);
 		}else if(node->type==EXP_EVAL){
-			printf("eval");
+			if(!slice_flag)
+				printf("eval");
 		}
-		printf("( ");
-		for(i=node->u.func.num_paras;i>0;i--){
-			expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
-			printExpTreeNode(expNode);
-			if(i>1)
-				printf(", ");
+		if(!slice_flag || node->type!=EXP_EVAL){
+			EXP_PRINTF(("( "));
+			for(i=node->u.func.num_paras;i>0;i--){
+				expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
+				printExpTreeNode(expNode, slice_flag);
+				if(i>1)
+					EXP_PRINTF((", "));
+			}
+			EXP_PRINTF((" )"));
 		}
-		printf(" )");
 		if(node->type==EXP_EVAL){
 			sprintf(str, "block_%d", node->u.func.funcEntryBlock->id);
-			printf("/* eval'ed code -> %s */", str);
+			EXP_PRINTF(("/* eval'ed code -> %s */", str));
 		}
 		break;
 	case EXP_NEW:
-		printf("(");
-		printf("new ");
-		printExpTreeNode(node->u.func.name);
-		printf("( ");
+		EXP_PRINTF(("("));
+		EXP_PRINTF(("new "));
+		printExpTreeNode(node->u.func.name, slice_flag);
+		EXP_PRINTF(("( "));
 		for(i=node->u.func.num_paras-1;i>=0;i--){
 			expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i);
-			printExpTreeNode(expNode);
+			printExpTreeNode(expNode, slice_flag);
 			if(i)
-				printf(", ");
+				EXP_PRINTF((", "));
 		}
-		printf(" )");
-		printf(")");
+		EXP_PRINTF((" )"));
+		EXP_PRINTF((")"));
 		if(node->u.func.funcEntryBlock){
 			sprintf(str, "block_%d", node->u.func.funcEntryBlock->id);
-			printf("/* target function: %s */", str);
+			EXP_PRINTF(("/* target function: %s */", str));
 		}
 		break;
 	case EXP_PROP:
-		printf("(");
+		EXP_PRINTF(("("));
 		//print obj
-		printf("(");
-		printExpTreeNode(node->u.prop.objName);
-		printf(")");
+		EXP_PRINTF(("("));
+		printExpTreeNode(node->u.prop.objName, slice_flag);
+		EXP_PRINTF((")"));
 		//print prop
-		printf(".");
-		printExpTreeNode(node->u.prop.propName);
-		printf(")");
+		EXP_PRINTF(("."));
+		printExpTreeNode(node->u.prop.propName, slice_flag);
+		EXP_PRINTF((")"));
 		break;
 	case EXP_BIN:
-		printf("(");
+		EXP_PRINTF(("("));
 		//print lval
-		printExpTreeNode(node->u.bin_op.lval);
+		printExpTreeNode(node->u.bin_op.lval, slice_flag);
 		//print op
 		switch(node->u.bin_op.op){
 		case OP_ADD:
-			printf("+");
+			EXP_PRINTF(("+"));
 			break;
 		case OP_SUB:
-			printf("-");
+			EXP_PRINTF(("-"));
 			break;
 		case OP_MUL:
-			printf("*");
+			EXP_PRINTF(("*"));
 			break;
 		case OP_DIV:
-			printf("/");
+			EXP_PRINTF(("/"));
 			break;
 		case OP_MOD:
-			printf("%%");
+			EXP_PRINTF(("%%"));
 			break;
 		case OP_INITPROP:
-			printf(":");
+			EXP_PRINTF((":"));
 			break;
 		case OP_GE:
-			printf(">=");
+			EXP_PRINTF((">="));
 			break;
 		case OP_GT:
-			printf(">");
+			EXP_PRINTF((">"));
 			break;
 		case OP_LE:
-			printf("<=");
+			EXP_PRINTF(("<="));
 			break;
 		case OP_LT:
-			printf("<");
+			EXP_PRINTF(("<"));
 			break;
 		case OP_EQ:
-			printf("==");
+			EXP_PRINTF(("=="));
 			break;
 		case OP_NE:
-			printf("!=");
+			EXP_PRINTF(("!="));
 			break;
 		case OP_AND:
-			printf("&&");
+			EXP_PRINTF(("&&"));
 			break;
 		case OP_OR:
-			printf("||");
+			EXP_PRINTF(("||"));
 			break;
 		case OP_ASSIGN:
-			printf("=");
+			EXP_PRINTF(("="));
 			break;
 		default:
-			printf("?");
+			EXP_PRINTF(("?"));
 			break;
 		}
 		//print rval
-		printExpTreeNode(node->u.bin_op.rval);
-		printf(")");
+		printExpTreeNode(node->u.bin_op.rval, slice_flag);
+		EXP_PRINTF((")"));
 		break;
 
 		case EXP_UN:
 		{
-			printf("(");
+			EXP_PRINTF(("("));
 			switch(node->u.un_op.op){
 			case OP_NOT:
-				printf("!");
-				printExpTreeNode(node->u.un_op.lval);
+				EXP_PRINTF(("!"));
+				printExpTreeNode(node->u.un_op.lval, slice_flag);
 			case OP_VINC:
-				printf("%s",node->u.un_op.name);
-				printf("++");
+				EXP_PRINTF(("%s",node->u.un_op.name));
+				EXP_PRINTF(("++"));
 				break;
 			case OP_VDEC:
-				printf("%s",node->u.un_op.name);
-				printf("--");
+				EXP_PRINTF(("%s",node->u.un_op.name));
+				EXP_PRINTF(("--"));
 				break;
 			case OP_INCV:
-				printf("++");
-				printf("%s",node->u.un_op.name);
+				EXP_PRINTF(("++"));
+				EXP_PRINTF(("%s",node->u.un_op.name));
 				break;
 			case OP_DECV:
-				printf("--");
-				printf("%s",node->u.un_op.name);
+				EXP_PRINTF(("--"));
+				EXP_PRINTF(("%s",node->u.un_op.name));
 				break;
 			default:
 				break;
 			}
-			printf(")");
+			EXP_PRINTF((")"));
 		}
 		break;
 
 
 		case EXP_ARRAY_ELM:
-			printExpTreeNode(node->u.array_elm.name);
-			printf("[");
-			printExpTreeNode(node->u.array_elm.index);
-			printf("]");
+			printExpTreeNode(node->u.array_elm.name, slice_flag);
+			EXP_PRINTF(("["));
+			printExpTreeNode(node->u.array_elm.index, slice_flag);
+			EXP_PRINTF(("]"));
 			break;
 
 		case EXP_ARRAY_INIT:
 			if(EXP_HAS_FLAG(node, EXP_IS_PROP_INIT)){
-				printf("{ ");
+				EXP_PRINTF(("{ "));
 			}else{
-				printf("[ ");
+				EXP_PRINTF(("[ "));
 			}
 			assert(node->u.array_init.size == al_size(node->u.array_init.initValues));
 			for(i=0;i<al_size(node->u.array_init.initValues);i++){
 				expNode = (ExpTreeNode *)al_get(node->u.array_init.initValues, i);
-				printExpTreeNode(expNode);
+				printExpTreeNode(expNode, slice_flag);
 				if(i<al_size(node->u.array_init.initValues)-1)
-					printf(", ");
+					EXP_PRINTF((", "));
 			}
 			if(EXP_HAS_FLAG(node, EXP_IS_PROP_INIT)){
-				printf(" }");
+				EXP_PRINTF((" }"));
 			}else{
-				printf(" ]");
+				EXP_PRINTF((" ]"));
 			}
 			break;
 
@@ -427,6 +434,8 @@ void printExpTreeNode(ExpTreeNode *node){
 	}//end switch
 
 	free(str);
+
+#undef EXP_PRINTF
 }
 
 
@@ -484,15 +493,19 @@ int SyntaxTreeNodeCompareByBlockID(void *i1, void *i2){
 ArrayList *tempSynTree=NULL;
 bool print_flag = false;
 
-void printSyntaxTreeNode(SyntaxTreeNode *node){
+void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 
+
+#define	SYN_PRINTF(s)	do{if(!slice_flag || (slice_flag && TN_HAS_FLAG(node, TN_IN_SLICE)))printf s ;}while(0)
+
+	assert(slice_flag==0||slice_flag==1);
 
 	int i;
 	char *str;
 	SyntaxTreeNode 	*sTreeNode;
 
 	//print an empty statement
-	if(!node){
+	if(!node && !slice_flag){
 		printf(";\t//this branch's likely missing from dynamic trace\n");
 		return;
 	}
@@ -504,6 +517,11 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 	switch(node->type){
 
 	case TN_FUNCTION:
+		if(slice_flag && !FUNC_HAS_FLAG(node->u.func.funcStruct, FUNC_IN_SLICE)){
+			assert(slice_flag && !TN_HAS_FLAG(node, TN_IN_SLICE));
+			break;
+		}
+
 		//eval'ed code block still use CFG id instead of SyntaxTreeNode ID!!!!!!
 		if(BBL_HAS_FLAG(node->u.func.funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY)){
 			sprintf(str, "block_%d:", node->u.func.funcStruct->funcEntryBlock->id);
@@ -523,20 +541,22 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		for(i=0;i<al_size(node->u.func.funcBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.func.funcBody, i);
 			assert(sTreeNode);
-			printSyntaxTreeNode(sTreeNode);
+			printSyntaxTreeNode(sTreeNode, slice_flag);
 			printf("\n");
 		}
 		printf("}\n");
 		break;
 
 	case TN_WHILE:
+		if(slice_flag && !TN_HAS_FLAG(node, TN_IN_SLICE))
+			break;
 		if(al_size(node->predsList)>0)
 			printf("block_%d:\n", node->id);
-		printf("while( "); printExpTreeNode(node->u.loop.cond);printf(" ){\n");
+		printf("while( "); printExpTreeNode(node->u.loop.cond, slice_flag);printf(" ){\n");
 		for(i=0;i<al_size(node->u.loop.loopBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.loop.loopBody, i);
 			assert(sTreeNode);
-			printSyntaxTreeNode(sTreeNode);
+			printSyntaxTreeNode(sTreeNode, slice_flag);
 			printf("\n");
 		}
 		printf("}\t//end loop\n");
@@ -554,66 +574,68 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 		for(i=0;i<al_size(node->u.block.statements);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.block.statements, i);
 			assert(sTreeNode);
-			printSyntaxTreeNode(sTreeNode);
-			printf(";\n");
+			printSyntaxTreeNode(sTreeNode, slice_flag);
+			printf("\n");
 		}
 		printf("\n");
 		break;
 
 	case TN_EXP:
-		printExpTreeNode(node->u.expNode);
+		printExpTreeNode(node->u.expNode, slice_flag);
+		SYN_PRINTF((";"));
 		break;
 
 	case TN_GOTO:
 		//printf("\n//goto id:%d\n", node->id);
 		if(TN_HAS_FLAG(node, TN_IS_GOTO_BREAK)){
-			printf("break;");
+			SYN_PRINTF(("break;"));
 		}else if(TN_HAS_FLAG(node, TN_IS_GOTO_CONTINUE)){
-			printf("continue;");
+			SYN_PRINTF(("continue;"));
 		}else{
 			if(0)
 				;
 			else if(TN_HAS_FLAG(node, TN_AFTER_RELINK_GOTO))
-				printf("goto block_%d", node->u.go_to.synTargetBlock->id);
+				SYN_PRINTF(("goto block_%d;", node->u.go_to.synTargetBlock->id));
 			else
-				printf("goto block_%d", node->u.go_to.targetBlock->id);
+				SYN_PRINTF(("goto block_%d;", node->u.go_to.targetBlock->id));
 		}
 		break;
 
 	case TN_DEFVAR:
-		printf("var ");
-		printExpTreeNode(node->u.expNode);
+		SYN_PRINTF(("var "));
+		printExpTreeNode(node->u.expNode, slice_flag);
 		break;
 
 	case TN_RETURN:
-		printf("return");
+		SYN_PRINTF(("return;"));
 		break;
 
 	case TN_RETEXP:
-		printf("return ");
-		printExpTreeNode(node->u.expNode);
+		SYN_PRINTF(("return "));
+		printExpTreeNode(node->u.expNode, slice_flag);
+		SYN_PRINTF((";"));
 		break;
 
 	case TN_IF_ELSE:
-		printf("if");
-		printf("( ");
-		printExpTreeNode(node->u.if_else.cond);
+		SYN_PRINTF(("if"));
+		SYN_PRINTF(("( "));
+		printExpTreeNode(node->u.if_else.cond, slice_flag);
 
-		printf(" ) {\n");
+		SYN_PRINTF((" ) {\n"));
 		for(i=0;i<al_size(node->u.if_else.if_path);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.if_path, i);
-			printSyntaxTreeNode(sTreeNode);
+			printSyntaxTreeNode(sTreeNode, slice_flag);
 		}
-		printf(";");
+		//SYN_PRINTF((";"));
 
-		printf(" \n}\nelse {\n");
+		SYN_PRINTF((" \n}\nelse {\n"));
 		for(i=0;i<al_size(node->u.if_else.else_path);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.else_path, i);
-			printSyntaxTreeNode(sTreeNode);
+			printSyntaxTreeNode(sTreeNode, slice_flag);
 		}
-		printf(";");
+		//SYN_PRINTF((";"));
 
-		printf("\n}");
+		SYN_PRINTF(("\n}"));
 		break;
 
 	default:
@@ -641,6 +663,8 @@ void printSyntaxTreeNode(SyntaxTreeNode *node){
 
 	if(print_flag)
 		printf("\n//end id:%d\n", node->id);
+
+#undef SYN_PRINTF
 
 }
 
@@ -695,10 +719,10 @@ void buildBlockSyntaxTreeFromSyntaxStack(SyntaxTreeNode *syntaxBlockNode, Syntax
 /*
  * macros to label nodes in slice
  */
-#define LABEL_EXP(exp_node) 	EXP_SET_FLAG(exp_node, EXP_IN_SLICE)
-#define LABEL_SYN(syn_node) 	TN_SET_FLAG(syn_node, TN_IN_SLICE)
+#define LABEL_EXP(exp_node) 	do{EXP_SET_FLAG(exp_node, EXP_IN_SLICE);TN_SET_FLAG(syntaxBlockNode, TN_IN_SLICE);}while(0)
+#define LABEL_SYN(syn_node) 	do{TN_SET_FLAG(syn_node, TN_IN_SLICE);TN_SET_FLAG(syntaxBlockNode, TN_IN_SLICE);}while(0)
 
-SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funcObjTable, ArrayList *funcCFGs){
+SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayList *funcObjTable, ArrayList *funcCFGs, int slice_flag){
 
 	int i,j;
 
@@ -778,7 +802,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				expTreeNode1->u.const_value_bool = true;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
 				//put node into slice, if and is in slice
-				if(INSTR_HAS_FLAG(lastInstr, INSTR_IN_SLICE))
+				if(slice_flag && INSTR_HAS_FLAG(lastInstr, INSTR_IN_SLICE))
 					LABEL_EXP(expTreeNode1);
 				stackNode1 = createSyntaxStackNode();
 				stackNode1->type = EXP_NODE;
@@ -790,7 +814,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				expTreeNode1->u.const_value_bool = false;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
 				//put node into slice, if or is in slice
-				if(INSTR_HAS_FLAG(lastInstr, INSTR_IN_SLICE))
+				if(slice_flag && INSTR_HAS_FLAG(lastInstr, INSTR_IN_SLICE))
 					LABEL_EXP(expTreeNode1);
 				stackNode1 = createSyntaxStackNode();
 				stackNode1->type = EXP_NODE;
@@ -927,7 +951,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
@@ -1000,7 +1024,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
@@ -1021,7 +1045,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode2;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode2);
 			}
 			pushSyntaxStack(stack, stackNode2);
@@ -1071,7 +1095,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
@@ -1101,7 +1125,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
@@ -1131,7 +1155,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
@@ -1197,7 +1221,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode3 = createSyntaxStackNode();
 			stackNode3->type = EXP_NODE;
 			stackNode3->node = (void *)expTreeNode3;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode3);
 			pushSyntaxStack(stack, stackNode3);
 			destroySyntaxStackNode(stackNode1);
@@ -1269,7 +1293,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2 = createSyntaxStackNode();
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode3;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode2);
 				LABEL_EXP(expTreeNode3);
 			}
@@ -1300,7 +1324,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode4->u.prop.objName = expTreeNode2;
 			expTreeNode4->u.prop.propName = expTreeNode3;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode3);
 				LABEL_EXP(expTreeNode4);
 			}
@@ -1312,7 +1336,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode2->u.bin_op.rval = expTreeNode1;
 			expTreeNode2->u.bin_op.op = OP_ASSIGN;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode2);
 			}
 			//push it into stack
@@ -1352,7 +1376,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1->type = EXP_NODE;
 			stackNode1->node = (void *)expTreeNode1;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode1);
 			}
 			pushSyntaxStack(stack, stackNode1);
@@ -1413,9 +1437,18 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode1;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
+			//note: eval exp is labeled, only for indication of special treatment in print func
+			else if(instr->opCode==JSOP_EVAL && INSTR_HAS_FLAG(instr,INSTR_EVAL_AFFECT_SLICE))
+				LABEL_EXP(expTreeNode1);
+
+			if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && EXP_HAS_FLAG(expTreeNode1, EXP_IN_SLICE)){
+				assert(instr->nextBlock);
+				Function *funcStruct = findFunctionByEntryAddress(funcCFGs, instr->nextBlock->addr);
+				FUNC_SET_FLAG(funcStruct, FUNC_IN_SLICE);
 			}
+
 			pushSyntaxStack(stack, stackNode2);
 			destroySyntaxStackNode(stackNode1);
 			break;
@@ -1433,7 +1466,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode3->type = EXP_NODE;
 			stackNode3->node = (void *)expTreeNode4;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode4);
 			}
 			pushSyntaxStack(stack, stackNode3);
@@ -1468,7 +1501,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2->type = EXP_NODE;
 			stackNode2->node = (void *)expTreeNode3;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode2);
 				LABEL_EXP(expTreeNode3);
 			}
@@ -1501,7 +1534,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode3->type = EXP_NODE;
 			stackNode3->node = (void *)expTreeNode3;
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode3);
 
 			pushSyntaxStack(stack, stackNode3);
@@ -1519,7 +1552,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode1->u.array_init.size = 0;
 			EXP_SET_FLAG(expTreeNode1, EXP_IS_PROP_INIT);
 			//label slice
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_EXP(expTreeNode1);
 			//push it
 			stackNode1 = createSyntaxStackNode();
@@ -1557,7 +1590,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				expTreeNode4->u.bin_op.op = OP_INITPROP;
 				al_add(expTreeNode3->u.array_init.initValues, expTreeNode1);
 				//label slice
-				if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 					LABEL_EXP(expTreeNode4);
 			}
 			expTreeNode3->u.array_init.size++;
@@ -1627,10 +1660,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 						al_add(sTreeNode1->u.if_else.if_path, (void *)sTreeNode2);
 					}
 				}
-				if(sTreeNode2 && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				if(slice_flag && sTreeNode2 && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 					LABEL_SYN(sTreeNode2);
 			}
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_SYN(sTreeNode1);
 			//push it
 			stackNode2 = createSyntaxStackNode();
@@ -1650,7 +1683,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode1 = createSyntaxStackNode();
 			stackNode1->type = SYN_NODE;
 			stackNode1->node = (void *)sTreeNode1;
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_SYN(sTreeNode1);
 			pushSyntaxStack(stack, stackNode1);
 			break;
@@ -1665,7 +1698,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				stackNode1 = createSyntaxStackNode();
 				stackNode1->type = SYN_NODE;
 				stackNode1->node = (void *)sTreeNode1;
-				if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 					LABEL_SYN(sTreeNode1);
 				pushSyntaxStack(stack, stackNode1);
 			}
@@ -1685,7 +1718,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1->type = TN_RETEXP;
 			sTreeNode1->u.expNode = expTreeNode1;
 
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_SYN(sTreeNode1);
 			//push it
 			stackNode1 = createSyntaxStackNode();
@@ -1712,7 +1745,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1->type = TN_DEFVAR;
 			sTreeNode1->u.expNode = expTreeNode1;
 
-			if(INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 				LABEL_SYN(sTreeNode1);
 			//push it
 			stackNode1 = createSyntaxStackNode();
@@ -1835,7 +1868,7 @@ SyntaxTreeNode *findBlockNodeByOldID(ArrayList *syntaxTree, int oldID){
 /*
  * the recursive function DFS
  */
-static void doSearch(BasicBlock *n, uint32_t flag, ArrayList *syntaxTree, ArrayList *funObjTable, ArrayList *funcCFGs){
+static void doSearch(BasicBlock *n, uint32_t flag, ArrayList *syntaxTree, ArrayList *funObjTable, ArrayList *funcCFGs, int slice_flag){
 	int i;
 	BlockEdge *edge;
 	BasicBlock *block;
@@ -1847,14 +1880,14 @@ static void doSearch(BasicBlock *n, uint32_t flag, ArrayList *syntaxTree, ArrayL
 #endif
 	BBL_SET_FLAG(n, flag);
 
-	syntaxBlockNode = buildSyntaxTreeForBlock(n, flag, funObjTable, funcCFGs);
+	syntaxBlockNode = buildSyntaxTreeForBlock(n, flag, funObjTable, funcCFGs, slice_flag);
 	al_add(syntaxTree, syntaxBlockNode);
 
 	for(i=0;i<al_size(n->immDomSuccs);i++){
 		edge = al_get(n->immDomSuccs, i);
 		block = edge->head;
 		if(!BBL_HAS_FLAG(block, flag)){
-			doSearch(block, flag, syntaxTree, funObjTable, funcCFGs);
+			doSearch(block, flag, syntaxTree, funObjTable, funcCFGs, slice_flag);
 		}
 	}
 
@@ -1931,7 +1964,7 @@ void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
 }
 
 
-void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
+void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList, int slice_flag){
 	int i;
 	int header_index;
 	NaturalLoop *loop;
@@ -1970,6 +2003,8 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 		header_index = al_indexOf(syntaxTree, sTreeNode1);
 		al_remove(syntaxTree, sTreeNode1);
 		al_add(loopNode->u.loop.loopBody, sTreeNode1);
+		if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE))
+			TN_SET_FLAG(loopNode, TN_IN_SLICE);
 		al_add(loopNode->u.loop.loopBody2, sTreeNode1);
 
 		al_insertAt(syntaxTree, loopNode, header_index);
@@ -1986,6 +2021,8 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 					assert(!isBlockTheLoopHeader(loop, sTreeNode1->u.block.cfg_id));
 					al_remove(syntaxTree, sTreeNode1);
 					al_add(loopNode->u.loop.loopBody, sTreeNode1);
+					if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE))
+						TN_SET_FLAG(loopNode, TN_IN_SLICE);
 					al_add(loopNode->u.loop.loopBody2, sTreeNode1);
 					move_flag++;
 				}
@@ -1999,6 +2036,8 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 						sTreeNode1->u.loop.header->id != loopNode->u.loop.header->id){
 					al_remove(syntaxTree, sTreeNode1);
 					al_add(loopNode->u.loop.loopBody, sTreeNode1);
+					if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE))
+						TN_SET_FLAG(loopNode, TN_IN_SLICE);
 					al_add(loopNode->u.loop.loopBody2, sTreeNode1);
 					move_flag++;
 				}
@@ -2022,7 +2061,7 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList){
 }
 
 
-void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
+void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs, int slice_flag){
 	int i,j;
 	Function *func;
 	SyntaxTreeNode *funcNode;
@@ -2054,6 +2093,10 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 		TN_SET_FLAG(sTreeNode1, TN_NOT_SHOW_LABEL);
 		al_remove(syntaxTree, sTreeNode1);
 		al_add(funcNode->u.func.funcBody, sTreeNode1);
+		if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE)){
+			TN_SET_FLAG(funcNode, TN_IN_SLICE);
+			//printf("#%d ", sTreeNode1->u.block.cfg_id);
+		}
 		//alway insert function at the beginning
 		al_insertAt(syntaxTree, funcNode, 0);
 
@@ -2066,6 +2109,10 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 				if(isBlockInTheFunction(func, sTreeNode1->u.block.cfg_id)){
 					al_remove(syntaxTree, sTreeNode1);
 					al_add(funcNode->u.func.funcBody,  sTreeNode1);
+					if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE)){
+						TN_SET_FLAG(funcNode, TN_IN_SLICE);
+						//printf("#%d ", sTreeNode1->u.block.cfg_id);
+					}
 					j--;
 				}
 			}
@@ -2076,10 +2123,16 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs){
 				if( isBlockInTheFunction(func, sTreeNode1->u.loop.header->id)){
 					al_remove(syntaxTree, sTreeNode1);
 					al_add(funcNode->u.func.funcBody,  sTreeNode1);
+					if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE)){
+						TN_SET_FLAG(funcNode, TN_IN_SLICE);
+						//printf("#%d ", sTreeNode1->u.block.cfg_id);
+					}
 					j--;
 				}
 			}
 		}//end for-loop
+		if(slice_flag && TN_HAS_FLAG(funcNode, TN_IN_SLICE))
+			assert(FUNC_HAS_FLAG(funcNode->u.func.funcStruct, FUNC_IN_SLICE));
 	}
 }
 
@@ -2648,7 +2701,7 @@ void relinkGotos(SyntaxTreeNode *parent, SyntaxTreeNode *node, ArrayList *list){
 
 
 
-ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs, ArrayList *funcObjTable){
+ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *loopList, ArrayList *funcCFGs, ArrayList *funcObjTable, int slice_flag){
 	int i;
 	BasicBlock *block;
 	BasicBlock *n0;
@@ -2686,7 +2739,7 @@ ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *lo
 		if(BBL_HAS_FLAG(block, BBL_IS_ENTRY_NODE) || BBL_HAS_FLAG(block, BBL_IS_FUNC_ENTRY)){
 			//printf("``````````starting with block#%d\n", block->id);
 			n0 = block;
-			doSearch(n0, BBL_FLAG_TMP0, syntaxTree, funcObjTable, funcCFGs);
+			doSearch(n0, BBL_FLAG_TMP0, syntaxTree, funcObjTable, funcCFGs, slice_flag);
 		}
 	}
 
@@ -2697,14 +2750,14 @@ ArrayList *buildSyntaxTree(InstrList *iList, ArrayList *blockList, ArrayList *lo
 	}
 
 	//loop finder has to be called before function finder
-	createLoopsInSynaxTree(syntaxTree,loopList);
+	createLoopsInSynaxTree(syntaxTree,loopList, slice_flag);
 
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);
 		BBL_CLR_FLAG(block, BBL_FLAG_TMP0);
 	}
 
-	createFuncsInSynaxTree(syntaxTree,funcCFGs);
+	createFuncsInSynaxTree(syntaxTree,funcCFGs, slice_flag);
 
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);

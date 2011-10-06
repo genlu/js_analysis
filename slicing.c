@@ -279,20 +279,21 @@ void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 #if INCLUDE_CTRL_DEP
 		// calculate control dependency of i
 		//1. inter-procedural control dependency (ignore 'eval')
-		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && instr->opCode!=JSOP_EVAL){
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
 			assert(state->lastFrame);
 			if(InstrListLength(state->lastFrame)>0){
-				UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
-
-				int in;
-				for(in=0;in<InstrListLength(state->lastFrame);in++){
-					UDPRINTF(("#%d ", getInstruction(state->lastFrame,in)->order));
-				}
-				UDPRINTF(("\n"));
-
-				add_flag++;
-				//put instr into currentFrame
-				InstrListAdd(currentFrame, instr);
+				if(instr->opCode!=JSOP_EVAL){
+					UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
+					int in;
+					for(in=0;in<InstrListLength(state->lastFrame);in++){
+						UDPRINTF(("#%d ", getInstruction(state->lastFrame,in)->order));
+					}
+					UDPRINTF(("\n"));
+					add_flag++;
+					//put instr into currentFrame
+					InstrListAdd(currentFrame, instr);
+				}else
+					INSTR_SET_FLAG(instr,INSTR_EVAL_AFFECT_SLICE);
 			}
 		}
 		//2. intra-procedural control dependency

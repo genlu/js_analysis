@@ -33,6 +33,7 @@ typedef enum {
 
 #define	INSTR_IN_SLICE				(1<<0)				// instruction is in the data dependence chain
 #define	INSTR_ON_EVAL				(1<<1)				// instruction affected the value of some string being eval'ed
+#define	INSTR_EVAL_AFFECT_SLICE		(1<<17)				// instr is eval, and generated instrs in slice
 
 #define	INSTR_IS_1_BRANCH			(1<<2)
 #define	INSTR_IS_2_BRANCH			(1<<3)
@@ -214,6 +215,13 @@ typedef struct Function{
 	char *funcName;
 	ArrayList *funcBody;		//a CFG of this function, which is a list of BasicBlocks belongs to this function
 }Function;
+
+
+#define FUNC_IN_SLICE					(1<<0)
+
+#define	FUNC_SET_FLAG(func, flag)		(func->flags |= flag)
+#define	FUNC_CLR_FLAG(func, flag)		(func->flags &= ~flag)
+#define	FUNC_HAS_FLAG(func, flag)		(func->flags & flag)
 
 /*********************************************************************************/
 
