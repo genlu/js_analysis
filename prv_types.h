@@ -92,7 +92,8 @@ typedef struct Instruction{
 	BasicBlock 	*inBlock;
 	BasicBlock 	*nextBlock;			//only used when INSTR_IS_BBL_END
 
-	ADDRESS		inFunction;			//filled in inbuildFunctionCFGs()
+	ADDRESS		inCallee;
+	ADDRESS		inFunction;			//filled by inbuildFunctionCFGs()
 }Instruction;
 
 typedef struct InstrList {

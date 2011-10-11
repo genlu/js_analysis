@@ -31,6 +31,7 @@ Instruction *InstrCreate(void) {
     new->nextBlock= NULL;
     new->inBlock = NULL;
     new->inFunction = 0;
+    new->inCallee = 0;
     return (new);
 }
 
@@ -340,21 +341,21 @@ void printInstruction(Instruction *ins){
 			ins->stackUse, ins->stackDef, ins->localUse, ins->localDef, \
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId
 	);*/
-	printf("%c%c%c%c%c $%d$ &%lx& #%u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+	printf("%c%c%c%c%c $%d$ #%-4u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
 			INSTR_HAS_FLAG(ins,INSTR_ON_EVAL)?'e':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IN_SLICE)?'*':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_START)?'S':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_END)?'E':' ',
 			INSTR_HAS_FLAG(ins,INSTR_BRANCH_TAKEN)?'1':INSTR_HAS_FLAG(ins,INSTR_BRANCH_NOT_TAKEN)?'0':' ',
 			ins->inBlock?ins->inBlock->id:-1,
-			ins->inFunction,
+			//ins->inFunction,
 			ins->order, ins->addr,	ins->opName,
 			ins->stackUseStart, ins->stackUseStart==0?0:ins->stackUseStart+(PTRSIZE * ins->stackUse)-1,
 			ins->stackDefStart, ins->stackDefStart==0?0:ins->stackDefStart+(PTRSIZE * ins->stackDef)-1,
 			ins->localUse, ins->localDef,
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId, ins->jmpOffset
 	);
-	if(!strcmp(ins->opName, "string")){
+	if(!strcmp(ins->opName, "string")||!strcmp(ins->opName, "regexp")){
 		printf("OP_S:%s\t", ins->operand.s);
 	}else if(!strcmp(ins->opName, "double")){
 		printf("OP_D:%f\t", ins->operand.d);

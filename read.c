@@ -96,7 +96,7 @@ Instruction *GetInstrFromText(char *buffer){
 		abort();
 	}
 
-	//get LEN, S_U/D, L_U/D, PROP_U/D
+	//get LEN, S_U/D, L_U/D, PROP_U/D, etc
 	while((tok=strtok_r(NULL, " \t\n", &tokSave))){
 		if(*tok!='#'){
 			//fprintf(stderr, "ignore token %s at line %d\n", tok, lineno);
@@ -454,6 +454,20 @@ Instruction *GetInstrFromText(char *buffer){
 				new->objRef = addr;
 			}else{
 				fprintf(stderr, "ERROR [line %d]: malformed trace [at #callee_obj (%s)] \n", lineno, tok);
+				abort();
+			}
+		}
+		else if(!strcmp(tok, "#IN_CALLEE:")){
+			tok = strtok_r(NULL, " \t\n", &tokSave);
+			if(!tok){
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at #IN_CALLEE] \n", lineno);
+				abort();
+			}
+			assert(new->inCallee == 0);
+			if((addr=atoh(tok)) != 0) {
+				new->inCallee = addr;
+			}else{
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at #IN_CALLEE (%s)] \n", lineno, tok);
 				abort();
 			}
 		}

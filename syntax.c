@@ -276,9 +276,19 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 			}
 			EXP_PRINTF((" )"));
 		}
-		if(node->type==EXP_EVAL){
+		/*
+		 *  right now, print parameters of eval(), which is probably wrong
+		 *  10/10/2011
+		 */
+		if(slice_flag && node->type==EXP_EVAL){
+			for(i=node->u.func.num_paras;i>0;i--){
+				expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
+				printExpTreeNode(expNode, slice_flag);
+				if(i>1)
+					EXP_PRINTF((", "));
+			}
 			sprintf(str, "block_%d", node->u.func.funcEntryBlock->id);
-			EXP_PRINTF(("/* eval'ed code -> %s */", str));
+			EXP_PRINTF(("\n/* eval'ed code -> %s */", str));
 		}
 		break;
 	case EXP_NEW:
@@ -377,6 +387,7 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 			case OP_NOT:
 				EXP_PRINTF(("!"));
 				printExpTreeNode(node->u.un_op.lval, slice_flag);
+				break;
 			case OP_VINC:
 				EXP_PRINTF(("%s",node->u.un_op.name));
 				EXP_PRINTF(("++"));
@@ -487,6 +498,52 @@ int SyntaxTreeNodeCompareByBlockID(void *i1, void *i2){
 	}else
 		id2 = ((SyntaxTreeNode *)i2)->u.func.funcStruct->funcEntryBlock->id;*/
 	return id1-id2;
+}
+
+/*
+ * return true if the node has not statements in there (could have empty blocks)
+ */
+bool SyntaxNodeIsEmpty(SyntaxTreeNode *node){
+	assert(node);
+	int i;
+	bool ret;
+	SyntaxTreeNode *tempNode;
+
+	ret = true;
+	//then recursively set each child (for block node)
+	switch(node->type){
+	case TN_BLOCK:
+		for(i=0;i<al_size(node->u.block.statements);i++){
+			tempNode = al_get(node->u.block.statements, i);
+			ret = ret && SyntaxNodeIsEmpty(tempNode);
+		}
+		break;
+	case TN_FUNCTION:
+	case TN_WHILE:
+	case TN_IF_ELSE:
+	case TN_GOTO:
+	case TN_RETURN:
+	case TN_RETEXP:
+	case TN_EXP:
+	case TN_DEFVAR:
+		ret = false;
+	default:
+		break;
+	}
+	return ret;
+}
+
+bool SyntaxNodeListIsEmpty(ArrayList *statements){
+	assert(statements);
+	int i;
+	bool ret;
+	SyntaxTreeNode *tempNode;
+	ret = true;
+	for(i=0;i<al_size(statements);i++){
+		tempNode = al_get(statements, i);
+		ret = ret && SyntaxNodeIsEmpty(tempNode);
+	}
+	return ret;
 }
 
 
@@ -626,16 +683,18 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.if_path, i);
 			printSyntaxTreeNode(sTreeNode, slice_flag);
 		}
-		//SYN_PRINTF((";"));
+		SYN_PRINTF((" \n}\n"));
 
-		SYN_PRINTF((" \n}\nelse {\n"));
-		for(i=0;i<al_size(node->u.if_else.else_path);i++){
-			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.else_path, i);
-			printSyntaxTreeNode(sTreeNode, slice_flag);
+		//if(!SyntaxNodeListIsEmpty(node->u.if_else.else_path)){
+		if(1){
+			SYN_PRINTF((" else {\n"));
+			for(i=0;i<al_size(node->u.if_else.else_path);i++){
+				sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.else_path, i);
+				printSyntaxTreeNode(sTreeNode, slice_flag);
+			}
+
+			SYN_PRINTF(("\n}"));
 		}
-		//SYN_PRINTF((";"));
-
-		SYN_PRINTF(("\n}"));
 		break;
 
 	default:
@@ -1444,6 +1503,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				LABEL_EXP(expTreeNode1);
 
 			if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && EXP_HAS_FLAG(expTreeNode1, EXP_IN_SLICE)){
+				printf("\ncall instr labeled! order:%d\tfunc_obj: %lx\n===============================================\n", instr->order, instr->objRef);
 				assert(instr->nextBlock);
 				Function *funcStruct = findFunctionByEntryAddress(funcCFGs, instr->nextBlock->addr);
 				FUNC_SET_FLAG(funcStruct, FUNC_IN_SLICE);
@@ -2073,7 +2133,7 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs, int slic
 	for(i=0;i<al_size(funcCFGs);i++){
 		func = al_get(funcCFGs,  i);
 
-		printf("processing function %s\nblocks:\t", func->funcName);
+		printf("\nprocessing function %s\nblocks:\t", func->funcName);
 		for(j=0;j<al_size(func->funcBody);j++){
 			block = al_get(func->funcBody, j);
 			printf("%d\t", block->id);
@@ -2111,7 +2171,7 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs, int slic
 					al_add(funcNode->u.func.funcBody,  sTreeNode1);
 					if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE)){
 						TN_SET_FLAG(funcNode, TN_IN_SLICE);
-						//printf("#%d ", sTreeNode1->u.block.cfg_id);
+						printf("bbl-#%d ", sTreeNode1->id);
 					}
 					j--;
 				}
@@ -2125,7 +2185,7 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs, int slic
 					al_add(funcNode->u.func.funcBody,  sTreeNode1);
 					if(slice_flag && TN_HAS_FLAG(sTreeNode1, TN_IN_SLICE)){
 						TN_SET_FLAG(funcNode, TN_IN_SLICE);
-						//printf("#%d ", sTreeNode1->u.block.cfg_id);
+						printf("loop-#%d ", sTreeNode1->id);
 					}
 					j--;
 				}
@@ -3176,7 +3236,7 @@ bool trans_while_helper_infWhile(ArrayList *syntaxTree, SyntaxTreeNode *node){
 				tempNode3 = (SyntaxTreeNode *)al_get(tempNode1->u.if_else.else_path,0);
 				//if if branch is a goto out of loop
 				if(tempNode2 && tempNode2->type==TN_GOTO && !isGotoTargetInThisLoop(tempNode2, node)){
-					printf("+++ combine else and loop#%d\n", node->id);
+					//printf("+++ combine else and loop#%d\n", node->id);
 					//set loop condition
 					node->u.loop.cond = createExpTreeNode();
 					node->u.loop.cond->type=EXP_UN;
@@ -3203,7 +3263,7 @@ bool trans_while_helper_infWhile(ArrayList *syntaxTree, SyntaxTreeNode *node){
 					node->u.loop.cond = tempNode1->u.if_else.cond;
 					//move goto after loop
 					moveToAfter(syntaxTree, tempNode3, node);
-					//move all the statements in else branch before if-else node
+					//move all the statements in if branch before if-else node
 					while(al_size(tempNode1->u.if_else.if_path)>0){
 						moveToBefore(syntaxTree, (SyntaxTreeNode *)al_get(tempNode1->u.if_else.if_path,0), tempNode1);
 					}
