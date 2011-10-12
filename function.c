@@ -348,6 +348,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList, ArrayList *
 	for(i=0;i<al_size(functionCFGs);i++){
 		func = al_get(functionCFGs, i);
 		printf("func %s\t", func->funcName);
+		printf("func_entry_addr %lx\t", func->funcEntryAddr);
 		for(j=0;j<al_size(func->funcBody);j++){
 			printf("%d  ",((BasicBlock*)al_get(func->funcBody, j))->id);
 		}
@@ -627,7 +628,10 @@ ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs){
 		else if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode == JSOP_EVAL)){
 			assert(next);
 			funcStruct = findFunctionByEntryAddress(funcCFGs, next->addr);
-			BBL_SET_FLAG(funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY);
+			if(funcStruct)
+				BBL_SET_FLAG(funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY);
+			else
+				assert(0);
 		}
 		//named function def
 		else if(instr->opCode==JSOP_DEFFUN || instr->opCode==JSOP_CLOSURE){
