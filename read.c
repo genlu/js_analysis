@@ -219,6 +219,16 @@ Instruction *GetInstrFromText(char *buffer){
 				abort();
 			}
 		}
+		else if(!strcmp(tok, "#L_DEF2:")){
+			tok=strtok_r(NULL, " \t\n", &tokSave);
+			if((addr=atoh(tok)) != 0) {
+				new->localDef2 = addr;
+				//fprintf(stderr, "#L_USE: %lx\t", addr);
+			}else{
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at L_DEF2 (%s)] \n", lineno, tok);
+				abort();
+			}
+		}
 		else if(!strcmp(tok, "#USE_PROP:")){
 			//get scope addr
 			tok=strtok_r(NULL, " \t\n", &tokSave);

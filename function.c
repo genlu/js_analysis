@@ -136,7 +136,7 @@ static void doSearch(ArrayList *blockList, BasicBlock *n, uint32_t flag, ArrayLi
 						//printf("@@      b4:%d\n", block4->id);
 						al_remove(block4->succs, (void *)edge);
 						al_remove(block3->preds, (void *)edge);
-						printf("@@@@@ b1:%d\tb2:%d\tb3:%d\tb4:%d\n", block1->id, block2->id, block3->id, block4->id);
+						//printf("@@@@@ b1:%d\tb2:%d\tb3:%d\tb4:%d\n", block1->id, block2->id, block3->id, block4->id);
 						//hack
 						j--;
 
@@ -165,6 +165,8 @@ static void doSearch(ArrayList *blockList, BasicBlock *n, uint32_t flag, ArrayLi
 				if(!added){
 					destroyBlockEdge(edge);
 				}
+				//printf("dealing: %d\t block1:%d\t block3:%d\n", n->id, block1->id, block3->id);
+				doSearch(blockList, block3, flag, functionCFGs);
 			}
 			assert(al_size(block1->preds)==0);
 
@@ -177,9 +179,11 @@ static void doSearch(ArrayList *blockList, BasicBlock *n, uint32_t flag, ArrayLi
 			else
 				al_add(functionCFGs, (void *)func);
 
+			//printBasicBlockList(blockList);
+
 			doSearch(blockList, block1, flag, functionCFGs);
 
-			doSearch(blockList, block3, flag, functionCFGs);
+			//doSearch(blockList, block3, flag, functionCFGs);
 		}
 	}
 	else{
@@ -345,6 +349,8 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList, ArrayList *
 		doSearchFuncBody(func, func->funcEntryBlock, func->funcBody, BBL_FLAG_TMP0);
 	}
 	//print all function info
+	printf("\nFunctionCFGs:\t");
+	printf("%d\n", al_size(functionCFGs));
 	for(i=0;i<al_size(functionCFGs);i++){
 		func = al_get(functionCFGs, i);
 		printf("func %s\t", func->funcName);
@@ -354,7 +360,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList, ArrayList *
 		}
 		printf("\n");
 	}
-
+	printf("**********************\n");
 	//clear flag TMP0
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);

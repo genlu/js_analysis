@@ -209,6 +209,8 @@ void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 	 * include all remaining none branch instrs in this
 	 * block into the slice but we DON'T use them to do the slicing!
 	 */
+	//xxx don't need this step, since we don't decompile the slice anymore
+	/*
 	int tempInt = *i;
 	//while(!INSTR_HAS_FLAG(instr, INSTR_IS_BBL_END)){
 	while(!INSTR_HAS_FLAG(instr, INSTR_IS_BBL_END)){
@@ -220,6 +222,7 @@ void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 			break;
 		}
 	}
+	*/
 
 	instr=getInstruction(iList,(*i));
 

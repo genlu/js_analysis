@@ -27,6 +27,7 @@ Instruction *InstrCreate(void) {
     new->propDefId = 0;
     new->localUse = 0;
     new->localDef = 0;
+    new->localDef2 = 0;
     new->jmpOffset = 0;
     new->nextBlock= NULL;
     new->inBlock = NULL;
@@ -182,7 +183,7 @@ WriteSet *getMemUse(InstrList *iList, int order){
 
 WriteSet *getMemDef(InstrList *iList, int order){
 	WriteSet *ws;
-	Range *s_range = NULL, *l_range = NULL;
+	Range *s_range = NULL, *l_range = NULL, *l_range2 = NULL;
 	Instruction *instr = getInstruction(iList, order);
 	if(!instr)
 		return NULL;
@@ -196,9 +197,14 @@ WriteSet *getMemDef(InstrList *iList, int order){
 		l_range = RangeCreate(instr->localDef, instr->localDef+ PTRSIZE -1);
 		assert(l_range);
 	}
+	if(instr->localDef2){
+		l_range2 = RangeCreate(instr->localDef2, instr->localDef2+ PTRSIZE -1);
+		assert(l_range2);
+	}
 	if((ws=WriteSetCreate())){
 		AddRangeToWriteSet(ws, s_range);
 		AddRangeToWriteSet(ws, l_range);
+		AddRangeToWriteSet(ws, l_range2);
 	}
 	return ws;
 }
@@ -341,7 +347,7 @@ void printInstruction(Instruction *ins){
 			ins->stackUse, ins->stackDef, ins->localUse, ins->localDef, \
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId
 	);*/
-	printf("%c%c%c%c%c $%d$ #%-4u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+	printf("%c%c%c%c%c $%d$ #%-4u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tL_DEF2: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
 			INSTR_HAS_FLAG(ins,INSTR_ON_EVAL)?'e':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IN_SLICE)?'*':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_START)?'S':' ',
@@ -352,7 +358,7 @@ void printInstruction(Instruction *ins){
 			ins->order, ins->addr,	ins->opName,
 			ins->stackUseStart, ins->stackUseStart==0?0:ins->stackUseStart+(PTRSIZE * ins->stackUse)-1,
 			ins->stackDefStart, ins->stackDefStart==0?0:ins->stackDefStart+(PTRSIZE * ins->stackDef)-1,
-			ins->localUse, ins->localDef,
+			ins->localUse, ins->localDef, ins->localDef2,
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId, ins->jmpOffset
 	);
 	if(!strcmp(ins->opName, "string")||!strcmp(ins->opName, "regexp")){
@@ -437,7 +443,7 @@ EvalEntry *isEvalEntryInList(ArrayList *evalList, char *str){
  * Process the instr list to adjust the address eval'ed instructions.
  * instructions resulted from the same string would have the same base address after prcessing.
  *
- * XXX: probably should use the address of 'eval' instruction instead of eval'ed string to determine
+ * XXX: probably should also use the address of 'eval' instruction instead of eval'ed string to determine
  *      if 2 eval generated code snippets are the same - 08/10/2011
  */
 void processEvaledInstr(InstrList *iList){

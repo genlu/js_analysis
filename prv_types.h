@@ -88,6 +88,7 @@ typedef struct Instruction{
 	long		propDefId;
 	ADDRESS		localUse;
 	ADDRESS		localDef;
+	ADDRESS		localDef2;
 	int			jmpOffset;
 	BasicBlock 	*inBlock;
 	BasicBlock 	*nextBlock;			//only used when INSTR_IS_BBL_END

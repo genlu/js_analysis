@@ -31,9 +31,10 @@ void PrintInfo(int func){
 	default:
 		return;
 	}
-	printf("\n\n/---------------------------------------------------------------------------------------/\n\
-			/                                    %10s                                        /\n\
-			/---------------------------------------------------------------------------------------/\n", f);
+	printf("\n\n\
+/---------------------------------------------------------------------------------------/\n\
+/                                    %15s                                    /\n\
+/---------------------------------------------------------------------------------------/\n", f);
 }
 
 void initSys(void){
@@ -90,6 +91,7 @@ int main (int argc, char *argv[]) {
 	 */
 	labelInstructionList(iList);
 
+	//printInstrList(iList);
 
 	//#if DECOMPILE
 	if(parameter==0){
@@ -106,13 +108,15 @@ int main (int argc, char *argv[]) {
 
 		printf("processEvaledInstr...\n");
 		processEvaledInstr(iList);
+		printf("%d\n",iList->numInstrs);
+		//printInstrList(iList);
 
 		printf("building CFG...\n");
 		funcBlockList = buildDynamicCFG(iList);
 
 
 		//printBasicBlockList(funcBlockList);
-		printInstrList(iList);
+		//printInstrList(iList);
 		printf("building function CFGs...\n");
 		funcCFGs = buildFunctionCFGs(iList, funcBlockList, &funcObjTable);
 
@@ -154,12 +158,13 @@ int main (int argc, char *argv[]) {
 		printNaturalLoopList(funcLoopList);
 
 
-		//printInstrList(iList);
+		printInstrList(iList);
 		//printBasicBlockList(funcBlockList);
 		printf("Building syntax tree...\n");
 		funcSyntaxTree = buildSyntaxTree(iList, funcBlockList, funcLoopList, funcCFGs, funcObjTable, parameter);
 
 		//print all function info
+		printf("\nprint all function info:\n");
 		Function *func;
 		for(i=0;i<al_size(funcCFGs);i++){
 			func = al_get(funcCFGs, i);
@@ -211,6 +216,7 @@ int main (int argc, char *argv[]) {
 		//Build dynamic CFG.
 		printf("build CFG for entire trace...\n");
 		blockList = buildDynamicCFG(iList);
+
 		//create functions list (separate them from main procedure)
 		printf("construct functions list from the CFG of entire trace...\n");
 		funcCFGs = buildFunctionCFGs(iList, blockList, &funcObjTable);
