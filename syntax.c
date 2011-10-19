@@ -752,7 +752,7 @@ void buildBlockSyntaxTreeFromSyntaxStack(SyntaxTreeNode *syntaxBlockNode, Syntax
 		//convert EXP_CALL, EXP_NEW, assignment and inc/dec expNode into a SyntaxTree node with type TN_EXP
 		//then add converted node into list, ignore all other ExpTreeNode
 		else{
-			assert(stackNode1->type = EXP_NODE);
+			assert(stackNode1->type == EXP_NODE);
 			expTreeNode = (ExpTreeNode *)(stackNode1->node);
 			if(expTreeNode->type==EXP_CALL || expTreeNode->type==EXP_NEW || expTreeNode->type==EXP_EVAL ||
 					(expTreeNode->type==EXP_BIN && expTreeNode->u.bin_op.op==OP_ASSIGN) ||
@@ -2191,8 +2191,10 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs, int slic
 				}
 			}
 		}//end for-loop
-		if(slice_flag && TN_HAS_FLAG(funcNode, TN_IN_SLICE))
+		if(slice_flag && TN_HAS_FLAG(funcNode, TN_IN_SLICE)){
+			//printf("assert: %d\n", ((Instruction *)al_get(funcNode->u.func.funcStruct->funcEntryBlock->instrs,0))->order);
 			assert(FUNC_HAS_FLAG(funcNode->u.func.funcStruct, FUNC_IN_SLICE));
+		}
 	}
 }
 
