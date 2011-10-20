@@ -389,20 +389,33 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 				printExpTreeNode(node->u.un_op.lval, slice_flag);
 				break;
 			case OP_VINC:
-				EXP_PRINTF(("%s",node->u.un_op.name));
+				if(node->u.un_op.name)
+					EXP_PRINTF(("%s",node->u.un_op.name));
+				else
+					printExpTreeNode(node->u.un_op.lval, slice_flag);
+
 				EXP_PRINTF(("++"));
 				break;
 			case OP_VDEC:
-				EXP_PRINTF(("%s",node->u.un_op.name));
+				if(node->u.un_op.name)
+					EXP_PRINTF(("%s",node->u.un_op.name));
+				else
+					printExpTreeNode(node->u.un_op.lval, slice_flag);
 				EXP_PRINTF(("--"));
 				break;
 			case OP_INCV:
 				EXP_PRINTF(("++"));
-				EXP_PRINTF(("%s",node->u.un_op.name));
+				if(node->u.un_op.name)
+					EXP_PRINTF(("%s",node->u.un_op.name));
+				else
+					printExpTreeNode(node->u.un_op.lval, slice_flag);
 				break;
 			case OP_DECV:
 				EXP_PRINTF(("--"));
-				EXP_PRINTF(("%s",node->u.un_op.name));
+				if(node->u.un_op.name)
+					EXP_PRINTF(("%s",node->u.un_op.name));
+				else
+					printExpTreeNode(node->u.un_op.lval, slice_flag);
 				break;
 			default:
 				break;
@@ -1106,6 +1119,56 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			stackNode2->node = (void *)expTreeNode2;
 			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
 				LABEL_EXP(expTreeNode2);
+			}
+			pushSyntaxStack(stack, stackNode2);
+			destroySyntaxStackNode(stackNode1);
+			break;
+
+		case JSOP_INCPROP:
+		case JSOP_DECPROP:
+		case JSOP_PROPINC:
+		case JSOP_PROPDEC:
+			stackNode1 = popSyntaxStack(stack);			//obj
+			assert(stackNode1->type == EXP_NODE);
+			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
+			//create a EXP_NAME node for prop name
+			expTreeNode2 = createExpTreeNode();
+			expTreeNode2->type =  EXP_NAME;
+			str = (char *)malloc(strlen(instr->str)+1);
+			assert(str);
+			memcpy(str, instr->str, strlen(instr->str)+1);
+			expTreeNode2->u.name = str;
+			//create a EXP_PROP node
+			expTreeNode3 = createExpTreeNode();
+			expTreeNode3->type =  EXP_PROP;
+			expTreeNode3->u.prop.objName = expTreeNode1;
+			expTreeNode3->u.prop.propName = expTreeNode2;
+			//create a inc/dec node
+			expTreeNode4 = createExpTreeNode();
+			expTreeNode4->type = EXP_UN;
+			expTreeNode4->u.un_op.name=NULL;
+			expTreeNode4->u.un_op.lval=expTreeNode3;
+			if(instr->opCode == JSOP_PROPINC){
+				expTreeNode4->u.un_op.op = OP_VINC;
+			}
+			if(instr->opCode == JSOP_PROPDEC){
+				expTreeNode4->u.un_op.op = OP_VDEC;
+			}
+			if(instr->opCode == JSOP_INCPROP){
+				expTreeNode4->u.un_op.op = OP_INCV;
+			}
+			if(instr->opCode == JSOP_DECPROP){
+				expTreeNode4->u.un_op.op = OP_DECV;
+			}
+			//push this into stack
+			stackNode2 = createSyntaxStackNode();
+			stackNode2->type = EXP_NODE;
+			stackNode2->node = (void *)expTreeNode4;
+			//label slice
+			if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+				LABEL_EXP(expTreeNode2);
+				LABEL_EXP(expTreeNode3);
+				LABEL_EXP(expTreeNode4);
 			}
 			pushSyntaxStack(stack, stackNode2);
 			destroySyntaxStackNode(stackNode1);

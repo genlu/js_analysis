@@ -91,7 +91,7 @@ int main (int argc, char *argv[]) {
 	 */
 	labelInstructionList(iList);
 
-	//printInstrList(iList);
+	printInstrList(iList);
 
 	//#if DECOMPILE
 	if(parameter==0){
