@@ -1688,39 +1688,65 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_INITELEM:
 		case JSOP_INITPROP:
 			stackNode1 = popSyntaxStack(stack);			//value
-			stackNode2 = popSyntaxStack(stack);			//index
-			stackNode3 = popSyntaxStack(stack);			//EXP_ARRAY_INIT node
-			assert(stackNode1 && stackNode2 && stackNode3);
+			stackNode2 = popSyntaxStack(stack);			//index for array, obj for prop
+			if(instr->opCode==JSOP_INITELEM)
+				stackNode3 = popSyntaxStack(stack);			//EXP_ARRAY_INIT node
+
+			assert(stackNode1 && stackNode2);
+			if(instr->opCode==JSOP_INITELEM)
+				assert(stackNode3);
 			assert(stackNode1->type == EXP_NODE);
 			assert(stackNode2->type == EXP_NODE);
-			assert(stackNode3->type == EXP_NODE);
+			if(instr->opCode==JSOP_INITELEM)
+				assert(stackNode3->type == EXP_NODE);
+
 			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
 			expTreeNode2 = (ExpTreeNode *)stackNode2->node;
-			expTreeNode3 = (ExpTreeNode *)stackNode3->node;
-			assert(expTreeNode3->type==EXP_ARRAY_INIT);
+			if(instr->opCode==JSOP_INITELEM)
+				expTreeNode3 = (ExpTreeNode *)stackNode3->node;
+
+			if(instr->opCode==JSOP_INITELEM)
+				assert(expTreeNode3->type==EXP_ARRAY_INIT);
+			else if(instr->opCode==JSOP_INITPROP)
+				assert(expTreeNode2->type==EXP_ARRAY_INIT);
+
 			if(instr->opCode==JSOP_INITELEM){
 				//this is a array
+				EXP_CLR_FLAG(expTreeNode3, EXP_IS_PROP_INIT);
 				EXP_CLR_FLAG(expTreeNode1, EXP_IS_PROP_INIT);
 				//assuming init ALL elements sequentially
 				al_add(expTreeNode3->u.array_init.initValues, expTreeNode1);
 			}
 			else if(instr->opCode==JSOP_INITPROP){
+				expTreeNode3 = createExpTreeNode();
+				expTreeNode3->type =  EXP_NAME;
+				str = (char *)malloc(strlen(instr->str)+1);
+				assert(str);
+				memcpy(str, instr->str, strlen(instr->str)+1);
+				expTreeNode3->u.name = str;
 				EXP_SET_FLAG(expTreeNode1, EXP_IS_PROP_INIT);
 				expTreeNode4 = createExpTreeNode();
 				expTreeNode4->type = EXP_BIN;
 				expTreeNode4->u.bin_op.lval = expTreeNode3;
-				expTreeNode4->u.bin_op.rval = expTreeNode2;
+				expTreeNode4->u.bin_op.rval = expTreeNode1;
 				expTreeNode4->u.bin_op.op = OP_INITPROP;
-				al_add(expTreeNode3->u.array_init.initValues, expTreeNode1);
+				al_add(expTreeNode2->u.array_init.initValues, expTreeNode4);
+				EXP_SET_FLAG(expTreeNode4, EXP_IS_PROP_INIT);
 				//label slice
 				if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
 					LABEL_EXP(expTreeNode4);
 			}
-			expTreeNode3->u.array_init.size++;
+			if(instr->opCode==JSOP_INITELEM)
+				expTreeNode3->u.array_init.size++;
+			else if(instr->opCode==JSOP_INITPROP)
+				expTreeNode2->u.array_init.size++;
 			//push it
 			stackNode4 = createSyntaxStackNode();
 			stackNode4->type = EXP_NODE;
-			stackNode4->node = (void *)expTreeNode3;
+			if(instr->opCode==JSOP_INITELEM)
+				stackNode4->node = (void *)expTreeNode3;
+			else if(instr->opCode==JSOP_INITPROP)
+				stackNode4->node = (void *)expTreeNode2;
 			pushSyntaxStack(stack, stackNode4);
 			destroySyntaxStackNode(stackNode1);
 			destroySyntaxStackNode(stackNode2);

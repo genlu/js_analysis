@@ -91,7 +91,7 @@ int main (int argc, char *argv[]) {
 	 */
 	labelInstructionList(iList);
 
-	printInstrList(iList);
+	//printInstrList(iList);
 
 	//#if DECOMPILE
 	if(parameter==0){
@@ -226,6 +226,7 @@ int main (int argc, char *argv[]) {
 		buildDFSTree(blockList);
 		//printInstrList(iList);
 
+		printBasicBlockList(blockList);
 
 		/*
 		 * now do the d-slicing

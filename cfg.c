@@ -191,10 +191,6 @@ void printBasicBlockList(ArrayList *blockList) {
  * find all the leaders (instruction) in the InstrList given,
  * leaders returned as an ArrayList(set) of Instruction*
  */
-/*
- * TODO: instructions in slice will not follow the rules for finding leaders used here
- * 		 need to think about it.
- */
 ArrayList *findLeaders(InstrList *iList){
 	Instruction *temp_ins;
 	ArrayList *leaders = al_newGeneric(AL_LIST_SET, addressCompare, refPrint, NULL);
@@ -655,6 +651,7 @@ ArrayList *buildBasicBlockList(InstrList *iList){
 			}
 		}else if(block->type==BT_N_BRANCH){
 			//TODO
+			assert(0);
 		}
 	}
 
