@@ -91,6 +91,8 @@ int main (int argc, char *argv[]) {
 	 */
 	labelInstructionList(iList);
 
+	//forwardUDchain(iList, 9);
+
 	//printInstrList(iList);
 
 	//#if DECOMPILE
@@ -159,7 +161,7 @@ int main (int argc, char *argv[]) {
 
 
 		printInstrList(iList);
-		//printBasicBlockList(funcBlockList);
+		printBasicBlockList(funcBlockList);
 		printf("Building syntax tree...\n");
 		funcSyntaxTree = buildSyntaxTree(iList, funcBlockList, funcLoopList, funcCFGs, funcObjTable, parameter);
 
@@ -237,7 +239,7 @@ int main (int argc, char *argv[]) {
 		/*    ArrayList *funcStartInstrList;		//a list of function start instructions in the slice
     funcStartInstrList = findFuncStartInstrsInSlice(iList);*/
 
-		printInstrList(iList);
+		//printInstrList(iList);
 
 		/*todo: big change here
     1. find all function entry instrs: 1st instr after a non-native call (1 per function/eval)
@@ -285,7 +287,7 @@ int main (int argc, char *argv[]) {
 		al_freeWithElements(funcObjTable);
 		destroyNaturalLoopList(loopList);
 		destroyFunctionCFGs(funcCFGs);
-		destroyBasicBlockList(blockList);
+		//destroyBasicBlockList(blockList);
 		//#endif
 	}
 

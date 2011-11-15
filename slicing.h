@@ -20,7 +20,7 @@ typedef struct SlicingState{
 }SlicingState;
 
 
-Property *createProperty(ADDRESS obj,long id);
+Property *createProperty(ADDRESS obj,long id, char *name);
 void propPrint(void *item);
 int propCompare(void *o1, void *o2);
 SlicingPropSet *createPropSet(void);
@@ -35,5 +35,6 @@ void deobfSlicing(InstrList *iList);
 ArrayList *findFuncStartInstrsInSlice(InstrList *iList);
 
 void testUD(InstrList *iList, SlicingState *state);
+void forwardUDchain(InstrList *iList, int order);
 
 #endif

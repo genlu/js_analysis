@@ -12,27 +12,38 @@
 
 
 //can't create a (0,0) property
-Property *createProperty(ADDRESS obj,long id){
-	assert(obj!=0 && id!=0);
+Property *createProperty(ADDRESS obj,long id, char *name){
+	assert(obj!=0 && id!=0 && name!=NULL);
 	Property *prop = (Property *)malloc(sizeof(Property));
 	if(!prop)
 		return NULL;
 	prop->obj = obj;
 	prop->id = id;
+	prop->name=NULL;
+
+	prop->name = (char *)malloc(strlen(name)+1);
+	assert(prop->name);
+	memcpy(prop->name, name, strlen(name)+1);
+
 	return prop;
 }
 
 
 void propFree(void *item) {
 	Property *prop = (Property *)item;
-    if(prop!=NULL)
+    if(prop!=NULL){
+    	if(prop->name!=NULL){
+    		free(prop->name);
+    		prop->name=NULL;
+    	}
     	free(prop);
+    }
     prop = NULL;
 }
 
 void propPrint(void *item) {
 	Property *prop = (Property *)item;
-    printf("obj: 0x%16lX\tid: %-10ld\n", prop->obj, prop->id);
+    printf("obj: 0x%16lX\tid: %-10ld\t%s\n", prop->obj, prop->id, prop->name?prop->name:"");
 }
 
 int propCompare(void *o1, void *o2) {
@@ -41,10 +52,11 @@ int propCompare(void *o1, void *o2) {
 	assert(prop1 && prop2);
 
 	if(prop1->obj==prop2->obj){
-		if(prop1->id==prop2->id){
+/*		if(prop1->id==prop2->id){
 			return 0;
 		}else
-			return (int)(prop1->id-prop2->id);
+			return (int)(prop1->id-prop2->id);*/
+		return strcmp(prop1->name, prop2->name);
 	}else
 		return (int)(prop1->obj-prop2->obj);
 }
@@ -186,6 +198,79 @@ void testUD(InstrList *iList, SlicingState *state){
 
 
 #define UDPRINTF(a) 		//printf a
+
+void forwardUDchain(InstrList *iList, int order){
+	assert(iList && order>=0 && order<InstrListLength(iList));
+	Instruction *instr;
+	WriteSet *memLive, *memDef, *memUsed, *memTemp;
+	Property *propUsed, *propDef, *propTemp;
+	SlicingPropSet *propsLive;
+	int add_flag, i;
+
+
+	propsLive = createPropSet();
+	assert(propsLive);
+	propDef = getPropDef(iList, order);
+	if(propDef!=NULL)
+		al_add(propsLive->propSet, propDef);
+	memLive = getMemDef(iList, order);
+	assert(memLive);
+
+	printf("forward DU chain of instr %d\n", order);
+
+	i = order;
+	instr=getInstruction(iList,i);
+	//Starting instruction should be included in UD chain
+	printInstruction(instr);
+
+	//start from the instruction state->currect_instr-1
+	while(++i < InstrListLength(iList)){
+		add_flag=0;
+
+		//get previous instruction
+		instr=getInstruction(iList,i);
+
+		// get use/def info about instruction i
+		memUsed = getMemUse(iList, i);
+		memDef = getMemDef(iList, i);
+		propUsed = getPropUse(iList, i);
+		propDef = getPropDef(iList, i);
+
+
+		//calculate data dependency of i
+		if(WriteSetsOverlap(memLive, memUsed)){
+			add_flag++;
+		}
+		if(propUsed){
+			if(al_contains(propsLive->propSet, propUsed)){
+				add_flag++;
+			}
+		}
+
+		if(add_flag){
+			printInstruction(instr);
+			//add all xxxDef into live set
+			MergeWriteSets(memLive, memDef);
+            if(propDef)
+            	al_add(propsLive->propSet, propDef);
+		}
+		else{
+			//remove xxxDef from live set
+			memTemp = SubtractWriteSets(memLive, memDef);
+            WriteSetDestroy(memLive);
+            memLive = NULL;
+            memLive = memTemp;
+            if(propDef){
+            	if(al_contains(propsLive->propSet, propDef)){
+            		propTemp = al_remove(propsLive->propSet, propDef);
+            		propFree(propTemp);
+            	}
+            }
+		}
+		WriteSetDestroy(memUsed);
+		WriteSetDestroy(memDef);
+	}
+}
 
 void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 	assert(iList && state);
@@ -428,7 +513,7 @@ void deobfSlicing(InstrList *iList){
 		instr = getInstruction(iList, i);
 		if(!INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_ON_EVAL))
 			continue;
-#if DEOBFSLICING_PRINT
+#if 1//DEOBFSLICING_PRINT
 		printf("d-slicing on instr# %d\n", i);
 #endif
 	    SlicingState *state = initSlicingState(iList,i);
@@ -441,7 +526,7 @@ void deobfSlicing(InstrList *iList){
 	printf("*********************************************************************************\n");
     printInstrList(iList);
 #endif
-
+    printInstrList(iList);
     checkSlice(iList);
 }
 

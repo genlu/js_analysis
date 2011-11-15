@@ -266,6 +266,7 @@ Instruction *GetInstrFromText(char *buffer){
 					memcpy(new->str, tok, strlen(tok)+1);
 				}
 				else{
+					assert(!strcmp(new->str, tok));
 					;//printf("!!!!!! prop_use name: %s\tprop_def name: %s\n", tok, new->str);
 				}
 			}else{
@@ -331,6 +332,7 @@ Instruction *GetInstrFromText(char *buffer){
 					assert(new->str);
 					memcpy(new->str, tok, strlen(tok)+1);
 				}else{
+					assert(!strcmp(new->str, tok));
 					;//printf("!!!!!! prop_def name: %s\tprop_use name: %s\n", tok, new->str);
 				}
 			}else{
@@ -380,6 +382,15 @@ Instruction *GetInstrFromText(char *buffer){
 			INSTR_SET_FLAG(new, INSTR_IS_LARG_ACCESS);
 			//fprintf(stderr, "#id: %ld\t", id);
 		}
+		else if(!strcmp(tok, "#NVARS:")){
+			tok = strtok_r(NULL, " \t\n", &tokSave);
+			if(!tok){
+				fprintf(stderr, "ERROR [line %d]: malformed trace [at #NVARS] \n", lineno);
+				abort();
+			}
+			slot=atoi(tok);
+			new->nvars = slot;
+		}
 		else if(!strcmp(tok, "#OPND_I:")){
 			tok = strtok_r(NULL, " \t\n", &tokSave);
 			if(!tok){
@@ -401,9 +412,11 @@ Instruction *GetInstrFromText(char *buffer){
 			new->operand.d = number;
 			//fprintf(stderr, "#id: %ld\t", id);
 
-		}else if(!strcmp(tok, "#OPND_S:")){
+		}
+		//OPND_S is used by string and regexp
+		else if(!strcmp(tok, "#OPND_S:")){
 			//hack, we know OPND_S always the last in trace entry if appeared, and there's no '\0', but a '\t\n' at the end
-			//so to acoomodate entire string (with space, etc in between), we get to the end of line
+			//so to accommodate entire string (with space, etc in between), we get to the end of line
 			//and substitute '\t\n' with '\0'
 			tok = tokSave;
 			//printf("#OPND_S:  tok:%s toklen:%d\n", tok, strlen(tok));
@@ -428,6 +441,7 @@ Instruction *GetInstrFromText(char *buffer){
 			assert(new->operand.s);
 			memcpy(new->operand.s, tok, strlen(tok)+1);
 		}
+		//used by eval
 		else if(!strcmp(tok, "#js_CompileScript:")){
 			if(strcmp(new->opName, "eval")){
 				printf("non-eval instr %s has #js_CompileScript\n", new->opName);
@@ -448,10 +462,10 @@ Instruction *GetInstrFromText(char *buffer){
 				tok[1] = '\0';
 				printf("instr addr: %lx\t#OPND_S: empty string! @line %d\n", new->addr, lineno);
 			}
-			new->str = (char *)malloc(strlen(tok)+1);
-			assert(new->str);
-			memcpy(new->str, tok, strlen(tok)+1);
-			printf("get a eval: %s\n", new->str);
+			new->eval_str = (char *)malloc(strlen(tok)+1);
+			assert(new->eval_str);
+			memcpy(new->eval_str, tok, strlen(tok)+1);
+			printf("get a eval: %s\n", new->eval_str);
 		}
 		else if(!strcmp(tok, "#callee_obj:")){
 			tok = strtok_r(NULL, " \t\n", &tokSave);

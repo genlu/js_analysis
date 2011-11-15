@@ -1100,7 +1100,7 @@ void doReverseSearch(BasicBlock *n, uint32_t flag){
 	BasicBlock *block;
 	assert(n);
 	BBL_SET_FLAG(n, flag);
-
+	//printf("add block:%d\n", n->id);
 	for(i=0;i<al_size(n->preds);i++){
 		edge = al_get(n->preds, i);
 		block = edge->tail;
@@ -1121,9 +1121,13 @@ NaturalLoop *buildLoop(ArrayList *blockList, NaturalLoop *loop){
 		BBL_CLR_FLAG(block, BBL_FLAG_TMP0);
 	}
 
-	BBL_SET_FLAG(loop->header, BBL_FLAG_TMP0);
 	block = ((BlockEdge *)al_get(loop->backEdges,0))->tail;
-	doReverseSearch(block, BBL_FLAG_TMP0);
+	if(block->id == loop->header->id)
+		al_add(loop->nodes, block);
+	else{
+		BBL_SET_FLAG(loop->header, BBL_FLAG_TMP0);
+		doReverseSearch(block, BBL_FLAG_TMP0);
+	}
 
 	for(i=0;i<al_size(blockList);i++){
 		block = al_get(blockList, i);

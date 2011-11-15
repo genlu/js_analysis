@@ -71,6 +71,7 @@ typedef struct Instruction{
 	OpCode		opCode;
 	int			length;
 	uint32_t	flags;
+	char *		eval_str;	// actual string passed to eval
 	char *		str;		// this used to store prop/global var/func name used by opcode
 	ADDRESS		objRef;
 	union{
@@ -90,6 +91,7 @@ typedef struct Instruction{
 	ADDRESS		localDef;
 	ADDRESS		localDef2;
 	int			jmpOffset;
+	int			nvars;
 	BasicBlock 	*inBlock;
 	BasicBlock 	*nextBlock;			//only used when INSTR_IS_BBL_END
 
@@ -210,6 +212,7 @@ typedef struct Function{
 	//int id;
 	uint32_t flags;
 	int		args;
+	int		loc_vars;
 	ADDRESS	funcEntryAddr;
 	//ADDRESS	funcObj;
 	ArrayList *funcObj;
@@ -242,6 +245,7 @@ typedef struct WriteSet {
 typedef struct Property{
 	ADDRESS	obj;
 	long	id;
+	char *name;
 }Property;
 
 typedef struct OpStack{

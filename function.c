@@ -41,6 +41,7 @@ Function *createFunctionNode(void){
 	Function *func = (Function *)malloc(sizeof(Function));
 	assert(func);
 	func->args = 0;
+	func->loc_vars = 0;
 	func->flags = 0;
 	func->funcEntryAddr = 0;
 	func->funcObj = al_newInt(AL_LIST_SET);;
@@ -573,6 +574,7 @@ void printFuncObjTable(ArrayList *funcObjTable){
  * 		JSOP_ANONFUNOBJ will check if the function is already added (by using instr's addr) before create a new entry
  * Function calling instructions (JSOP_NEW & JSOP_CALL) will find the existing function entry,
  * 		and fill in the the address of function's first instruction ()
+ * JSOP_STOP/RETURN will set the func->loc_vars by looking at instr->nvars
  */
 ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs){
 
@@ -700,6 +702,12 @@ ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs){
 		printFuncObjTable(funcObjTable);
 #endif
 			}
+		}
+		//return op, set func->loc_vars
+		else if(INSTR_HAS_FLAG(instr,INSTR_IS_RET) && instr->inCallee){
+			funcStruct = findFunctionByObjAddress(funcCFGs, instr->inCallee);
+			assert(funcStruct);
+			funcStruct->loc_vars = instr->nvars;
 		}
 	}//end for-loop
 	return funcObjTable;

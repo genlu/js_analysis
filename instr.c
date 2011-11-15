@@ -14,6 +14,7 @@ Instruction *InstrCreate(void) {
     new->addr = 0;;
     new->length = 0;
     new->str = NULL;
+    new->eval_str = NULL;
     new->objRef = 0;
     new->opName[0]='\0';
     new->operand.i = -1;
@@ -29,6 +30,7 @@ Instruction *InstrCreate(void) {
     new->localDef = 0;
     new->localDef2 = 0;
     new->jmpOffset = 0;
+    new->nvars = 0;
     new->nextBlock= NULL;
     new->inBlock = NULL;
     new->inFunction = 0;
@@ -44,8 +46,12 @@ Instruction *InstrCreate(void) {
 
 
 void InstrDestroy(Instruction *instr) {
-	if(!strcmp(instr->opName, "string")){
+	if(!strcmp(instr->opName, "string")||!strcmp(instr->opName, "regexp")){
 		free(instr->operand.s);
+		instr->operand.s = NULL;
+	}else if(!strcmp(instr->opName, "eval")){
+		free(instr->eval_str);
+		instr->eval_str = NULL;
 	}
 /*	if(instr->str){
 		free(instr->str);
@@ -84,10 +90,15 @@ InstrList *InstrListClone(InstrList *iList, uint32_t flag){
 			newInstr = (Instruction *)malloc(sizeof(Instruction));
 			assert(newInstr);
 			memcpy((void *)newInstr, (void *)instr, sizeof(Instruction));
-			if(!strcmp(instr->opName, "string")){
+			if(!strcmp(instr->opName, "string")||!strcmp(instr->opName, "regexp")){
 				newInstr->operand.s = (char *)malloc(strlen(instr->operand.s)+1);
 				assert(newInstr->operand.s);
 				memcpy(newInstr->operand.s, instr->operand.s, strlen(instr->operand.s)+1);
+			}else if(!strcmp(instr->opName, "eval")){
+				newInstr->eval_str =  (char *)malloc(strlen(instr->eval_str)+1);
+				assert(newInstr->eval_str);
+				memcpy(newInstr->eval_str, instr->eval_str, strlen(instr->eval_str)+1);
+
 			}
 			if(instr->str){
 				newInstr->str = (char *)malloc(strlen(instr->str)+1);
@@ -142,7 +153,7 @@ Property *getPropUse(InstrList *iList, int order){
 	//for (0,0) property
 	if(!(instr->propUseScope && instr->propUseId))
 		return NULL;
-	prop = createProperty(instr->propUseScope, instr->propUseId);
+	prop = createProperty(instr->propUseScope, instr->propUseId, instr->str);
 	return prop;
 }
 
@@ -154,7 +165,7 @@ Property *getPropDef(InstrList *iList, int order){
 	//for (0,0) property
 	if(!(instr->propDefScope && instr->propDefId))
 		return NULL;
-	prop = createProperty(instr->propDefScope, instr->propDefId);
+	prop = createProperty(instr->propDefScope, instr->propDefId, instr->str);
 	return prop;
 }
 
@@ -465,15 +476,15 @@ void processEvaledInstr(InstrList *iList){
 		instr->addr = instr->addr - offset;
 		if(instr->opCode==JSOP_EVAL){
 			//string already get evaled once
-			if((entry1 = isEvalEntryInList(evalList, instr->str))){
+			if((entry1 = isEvalEntryInList(evalList, instr->eval_str))){
 				next = getInstruction(iList, i+1);
 				pushOpStack(stack, (void *)offset);
 				offset = next->addr - entry1->base;
 			}else{
 				next = getInstruction(iList, i+1);
 				printInstruction(instr);
-				assert(instr->str);
-				entry1 = createEvalEntry(instr->str, next->addr);
+				assert(instr->eval_str);
+				entry1 = createEvalEntry(instr->eval_str, next->addr);
 				al_add(evalList, entry1);
 				pushOpStack(stack, (void *)offset);
 				offset = 0;
