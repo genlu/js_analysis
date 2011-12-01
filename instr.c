@@ -308,8 +308,15 @@ bool isNativeInvokeInstruction(InstrList *iList, Instruction *ins){
 		return true;
 	if(next->addr==nextInstrAddr)
 		return true;
-	else
-		return false;
+	else{
+		//if a call to document.write generate trace, then it's still a native call
+		//INSTR_IS_DOC_WRITE && INSTR_IS_NATIVE_INVOKE would identify such instr
+		if(INSTR_HAS_FLAG(ins, INSTR_IS_DOC_WRITE)){
+			return true;
+		}
+		else
+			return false;
+	}
 	//return INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE);
 }
 
@@ -335,9 +342,17 @@ void labelInstructionList(InstrList *iList){
 			else if(!isNativeInvokeInstruction(iList, instr)){
 				//printInstruction(instr);
 				assert(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE));
+				printf("#%d is non-native call\n", instr->order);
 			}else{
+				//a native call to doc.write() and generate trace
+				if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
+					assert(INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE));
+					printf("#%d is document.write() and generate code\n", instr->order);
+				}else{
 				//printInstruction(instr);
-				assert(INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE));
+					assert(INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE));
+					printf("#%d is native call\n", instr->order);
+				}
 			}
 		}
 		if(is1WayBranch(iList, instr)){

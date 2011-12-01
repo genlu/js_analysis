@@ -204,8 +204,9 @@ ArrayList *findLeaders(InstrList *iList){
 		Instruction *instr = getInstruction(iList, i);
 
 		//ignore non-jump instructions and native invocations
-		if(!isBranch(iList, instr) && !isRetInstruction(iList, instr) && \
-				!(isInvokeInstruction(iList, instr) && !isNativeInvokeInstruction(iList, instr))
+		if(!isBranch(iList, instr) &&
+				!isRetInstruction(iList, instr) &&
+				!(isInvokeInstruction(iList, instr) && INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE))
 		)
 			continue;
 
@@ -228,10 +229,10 @@ ArrayList *findLeaders(InstrList *iList){
 				al_add(leaders, (void *)(temp_ins->addr));
 			}
 		}
-		else{	//non-native invoke
+		else{	//non-native invoke and document.write() which generate code
 
 			if(i < iList->numInstrs-1){
-				assert(isInvokeInstruction(iList, instr) && !isNativeInvokeInstruction(iList, instr));
+				assert(isInvokeInstruction(iList, instr) && INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE));
 				temp_ins = getInstruction(iList, i+1);
 				al_add(leaders, (void *)(temp_ins->addr));
 			}

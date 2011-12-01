@@ -34,6 +34,9 @@ typedef enum {
 #define	INSTR_IN_SLICE				(1<<0)				// instruction is in the data dependence chain
 #define	INSTR_ON_EVAL				(1<<1)				// instruction affected the value of some string being eval'ed
 #define	INSTR_EVAL_AFFECT_SLICE		(1<<17)				// instr is eval, and generated instrs in slice
+#define	INSTR_IS_DOC_WRITE			(1<<18)				// instr is the native call to document.write()
+//INSTR_IS_SCRIPT_INVOKE && INSTR_IS_DOC_WRITE means a call to document.write which generate trace
+//INSTR_IS_NATIVE_INVOKE && INSTR_IS_DOC_WRITE means a call to document.write which doesn't generate trace
 
 #define	INSTR_IS_1_BRANCH			(1<<2)
 #define	INSTR_IS_2_BRANCH			(1<<3)

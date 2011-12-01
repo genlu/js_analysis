@@ -117,8 +117,8 @@ int main (int argc, char *argv[]) {
 		funcBlockList = buildDynamicCFG(iList);
 
 
-		//printBasicBlockList(funcBlockList);
-		//printInstrList(iList);
+		printBasicBlockList(funcBlockList);
+		printInstrList(iList);
 		printf("building function CFGs...\n");
 		funcCFGs = buildFunctionCFGs(iList, funcBlockList, &funcObjTable);
 

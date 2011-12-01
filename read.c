@@ -46,8 +46,12 @@ Instruction *GetInstrFromText(char *buffer){
 
 	static bool 	ignore = false;
 	static ADDRESS 	next_addr = 0;
+	static bool		last_is_doc_write = false;
+	static Instruction *last_native_call = NULL;
 	//ignore xor next_addr = 0
 	assert((ignore==false && next_addr==0) || (ignore==true && next_addr>0));
+	if(last_is_doc_write)
+		assert(last_native_call);
 
 	lineno += 1;
 
@@ -74,8 +78,22 @@ Instruction *GetInstrFromText(char *buffer){
 		if(ignore==false || (ignore==true && new->addr==next_addr)){
 			ignore = false;
 			next_addr = 0;
+			last_is_doc_write = false;
+			last_native_call = NULL;
 		}
+		//doc.write() generate trace, can't ignore them
+		else if(last_is_doc_write){
+			last_is_doc_write = false;
+			ignore = false;
+			next_addr = 0;
+			assert(INSTR_HAS_FLAG(last_native_call, INSTR_IS_NATIVE_INVOKE));
+			INSTR_SET_FLAG(last_native_call, INSTR_IS_SCRIPT_INVOKE);
+			last_native_call = NULL;
+		}
+		//callback trace
 		else{
+			last_is_doc_write = false;
+			last_native_call = NULL;
 			fprintf(stderr, "IGNORE: %lx %s\n", new->addr, new->opName);
 			InstrDestroy(new);
 			return NULL;
@@ -106,6 +124,10 @@ Instruction *GetInstrFromText(char *buffer){
 			InstrDestroy(new);
 			return NULL;
 		}
+		else if(!strcmp(tok, "#DOC_WRITE") ){
+			INSTR_SET_FLAG(new, INSTR_IS_DOC_WRITE);
+			last_is_doc_write = true;
+		}
 		else if(!strcmp(tok, "#LEN:")){
 			tok=strtok_r(NULL, " \t\n", &tokSave);
 			if(!tok){
@@ -131,6 +153,7 @@ Instruction *GetInstrFromText(char *buffer){
 				assert(new->length && new->addr);
 				ignore = true;
 				next_addr = new->addr + new->length;
+				last_native_call = new;
 			}
 			//fprintf(stderr, "#LEN: %d\t", new->length);
 		}
