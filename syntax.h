@@ -157,6 +157,7 @@ struct ExpTreeNode{
 #define EXP_IS_PROP_INIT		(1<<5)
 #define EXP_IS_NULL				(1<<6)
 #define EXP_IS_REGEXP			(1<<7)
+#define EXP_IS_DOC_WRITE		(1<<8)
 
 
 #define EXP_IN_SLICE			(1<<16)

@@ -370,7 +370,7 @@ void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag){
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
 			assert(state->lastFrame);
 			if(InstrListLength(state->lastFrame)>0){
-				if(instr->opCode!=JSOP_EVAL){
+				if(instr->opCode!=JSOP_EVAL&&!INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE)){
 					UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
 					int in;
 					for(in=0;in<InstrListLength(state->lastFrame);in++){
@@ -488,12 +488,14 @@ void deobfSlicing(InstrList *iList){
 	int i;
 	Instruction *instr;
 
-	//1. label all the native calls contribute to eval'ed string using INSTR_ON_EVAL flag
+	//1. label all the native calls contribute to eval'ed/document.write() string using INSTR_ON_EVAL flag
 
 	 for(i=InstrListLength(iList)-1;i>=0;i--){
 		instr = getInstruction(iList, i);
-		if(instr->opCode!=JSOP_EVAL)
+		if(instr->opCode!=JSOP_EVAL && !(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE))){
+			printf("#%d is INSTR_ON_EVAL\n", instr->order);
 			continue;
+		}
 	    SlicingState *state = initSlicingState(iList,i);
 	    markUDchain(iList, state, INSTR_ON_EVAL);	//it doestn't matter that markUDchian does't trace on eval()
 	    											//since we are actually tracing back on each eval() in this loop
@@ -509,9 +511,10 @@ void deobfSlicing(InstrList *iList){
 #endif
 
 	//2. d-slicing on all native calls not labeled by INSTR_ON_EVAL
+    //right now, we don't slicing on document.write()
 	for(i=InstrListLength(iList)-1;i>=0;i--){
 		instr = getInstruction(iList, i);
-		if(!INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_ON_EVAL))
+		if(!INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_ON_EVAL) || INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE))
 			continue;
 #if 1//DEOBFSLICING_PRINT
 		printf("d-slicing on instr# %d\n", i);

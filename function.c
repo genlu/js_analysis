@@ -600,7 +600,8 @@ ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs){
 		else
 			next = NULL;
 		//function calling instrs
-		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode == JSOP_NEW || instr->opCode == JSOP_CALL)){
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode == JSOP_NEW ||
+				(instr->opCode == JSOP_CALL&&!INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE)))){
 			assert(next);
 
 #if TABLE_DEBUG
@@ -633,7 +634,8 @@ ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs){
 			}
 		}
 		//eval, do nothing, just set flag (since eval'ed code doesn't need a name)
-		else if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && (instr->opCode == JSOP_EVAL)){
+		else if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) &&
+				((instr->opCode == JSOP_EVAL)||(instr->opCode == JSOP_CALL&&INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE)))){
 			assert(next);
 			funcStruct = findFunctionByEntryAddress(funcCFGs, next->addr);
 			if(funcStruct)

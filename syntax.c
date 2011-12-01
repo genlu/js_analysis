@@ -260,13 +260,17 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 		break;
 	case EXP_CALL:
 	case EXP_EVAL:
-		if(node->type==EXP_CALL){
+		if(node->type==EXP_CALL && !EXP_HAS_FLAG(node,EXP_IS_DOC_WRITE)){
 			printExpTreeNode(node->u.func.name, slice_flag);
-		}else if(node->type==EXP_EVAL){
-			if(!slice_flag)
-				printf("eval");
+		}else if(node->type==EXP_EVAL || (node->type==EXP_CALL && EXP_HAS_FLAG(node,EXP_IS_DOC_WRITE))){
+			if(!slice_flag){
+				if(node->type==EXP_EVAL)
+					printf("eval");
+				else
+					printExpTreeNode(node->u.func.name, slice_flag);
+			}
 		}
-		if(!slice_flag || node->type!=EXP_EVAL){
+		if(!slice_flag || (node->type!=EXP_EVAL && !EXP_HAS_FLAG(node,EXP_IS_DOC_WRITE))){
 			EXP_PRINTF(("( "));
 			for(i=node->u.func.num_paras;i>0;i--){
 				expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
@@ -280,10 +284,10 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 		 *  right now, print parameters of eval(), which is probably wrong
 		 *  10/10/2011
 		 */
-		if(slice_flag && node->type==EXP_EVAL){
+		if(slice_flag && (node->type==EXP_EVAL || EXP_HAS_FLAG(node,EXP_IS_DOC_WRITE))){
 			for(i=node->u.func.num_paras;i>0;i--){
 				expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
-				printExpTreeNode(expNode, slice_flag);
+				//printExpTreeNode(expNode, slice_flag);
 				if(i>1)
 					EXP_PRINTF((", "));
 			}
@@ -1524,6 +1528,8 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			expTreeNode1 = createExpTreeNode();
 			if(instr->opCode == JSOP_CALL){
 				expTreeNode1->type = EXP_CALL;
+				if(INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE))
+					EXP_SET_FLAG(expTreeNode1, EXP_IS_DOC_WRITE);
 			}else if(instr->opCode == JSOP_NEW){
 				expTreeNode1->type = EXP_NEW;
 			}else if(instr->opCode == JSOP_EVAL){
@@ -1572,6 +1578,9 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			//note: eval exp is labeled, only for indication of special treatment in print func
 			else if(slice_flag && instr->opCode==JSOP_EVAL && INSTR_HAS_FLAG(instr,INSTR_EVAL_AFFECT_SLICE))
 				LABEL_EXP(expTreeNode1);
+			else if(slice_flag && instr->opCode==JSOP_CALL && INSTR_HAS_FLAG(instr,INSTR_EVAL_AFFECT_SLICE)){
+				LABEL_EXP(expTreeNode1);
+			}
 
 			if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && EXP_HAS_FLAG(expTreeNode1, EXP_IN_SLICE)){
 				printf("\ncall instr labeled! order:%d\tfunc_obj: %lx\n===============================================\n", instr->order, instr->objRef);
