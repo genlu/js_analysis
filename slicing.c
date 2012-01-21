@@ -493,7 +493,7 @@ void deobfSlicing(InstrList *iList){
 	 for(i=InstrListLength(iList)-1;i>=0;i--){
 		instr = getInstruction(iList, i);
 		if(instr->opCode!=JSOP_EVAL && !(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) && INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE))){
-			printf("#%d is INSTR_ON_EVAL\n", instr->order);
+			//printf("#%d is INSTR_ON_EVAL\n", instr->order);
 			continue;
 		}
 	    SlicingState *state = initSlicingState(iList,i);
@@ -516,7 +516,7 @@ void deobfSlicing(InstrList *iList){
 		instr = getInstruction(iList, i);
 		if(!INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_ON_EVAL) || INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE))
 			continue;
-#if 1//DEOBFSLICING_PRINT
+#if DEOBFSLICING_PRINT
 		printf("d-slicing on instr# %d\n", i);
 #endif
 	    SlicingState *state = initSlicingState(iList,i);
@@ -529,7 +529,7 @@ void deobfSlicing(InstrList *iList){
 	printf("*********************************************************************************\n");
     printInstrList(iList);
 #endif
-    printInstrList(iList);
+    //printInstrList(iList);
     checkSlice(iList);
 }
 

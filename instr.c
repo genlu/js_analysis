@@ -323,9 +323,11 @@ bool isNativeInvokeInstruction(InstrList *iList, Instruction *ins){
 
 /*
  * set the instruction flags for different category
+ * return number of native calls
  */
-void labelInstructionList(InstrList *iList){
+int labelInstructionList(InstrList *iList){
 	int i;
+	int sum=0;
 	Instruction *instr;
 	for(i=0;i<iList->numInstrs;i++){
 		instr = getInstruction(iList, i);
@@ -337,21 +339,23 @@ void labelInstructionList(InstrList *iList){
 		// if s is a invocation instr
 		if(isInvokeInstruction(iList, instr)){
 			if(instr->opCode==JSOP_EVAL){
+				sum++;
 				INSTR_SET_FLAG(instr, INSTR_IS_SCRIPT_INVOKE);
 			}
 			else if(!isNativeInvokeInstruction(iList, instr)){
 				//printInstruction(instr);
 				assert(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE));
-				printf("#%d is non-native call\n", instr->order);
+				//printf("#%d is non-native call\n", instr->order);
 			}else{
+				sum++;
 				//a native call to doc.write() and generate trace
 				if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
 					assert(INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE));
-					printf("#%d is document.write() and generate code\n", instr->order);
+					//printf("#%d is document.write() and generate code\n", instr->order);
 				}else{
 				//printInstruction(instr);
 					assert(INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE));
-					printf("#%d is native call\n", instr->order);
+					//printf("#%d is native call\n", instr->order);
 				}
 			}
 		}
@@ -363,6 +367,7 @@ void labelInstructionList(InstrList *iList){
 			INSTR_SET_FLAG(instr, INSTR_IS_N_BRANCH);
 		}
 	}
+	return sum;
 }
 
 

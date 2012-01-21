@@ -17,7 +17,7 @@ int 			InstrListLength(InstrList *iList);
 void 			InstrListAdd(InstrList *iList, Instruction *instr);
 Instruction 	*InstrListRemove(InstrList *iList, Instruction *instr);
 
-void labelInstructionList(InstrList *iList);
+int labelInstructionList(InstrList *iList);
 
 Instruction 	*getInstruction(InstrList *iList, int order);
 

@@ -5,6 +5,11 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdint.h>
+
+#include<time.h>
+#include<sys/time.h>
+
+
 #include "prv_types.h"
 #include "instr.h"
 #include "read.h"
@@ -60,6 +65,13 @@ void test(void){
 
 int main (int argc, char *argv[]) {
 
+	  /* used to measure the execution time */
+	  struct timeval tv;
+	  struct timezone tz;
+	  struct tm *tm;
+	  long int t1s, t1m, t2s, t2m;
+
+
 	InstrList *iList = NULL;
 	int reducible;
 	int i,j;
@@ -78,6 +90,11 @@ int main (int argc, char *argv[]) {
 		return(-1);
 	}
 
+	  /* get current time(before executing) */
+	  gettimeofday(&tv, &tz);
+	  tm=localtime(&tv.tv_sec);
+	  t1s=tv.tv_sec;
+	  t1m=tv.tv_usec;
 
 	initSys();
 	//test();
@@ -89,7 +106,7 @@ int main (int argc, char *argv[]) {
 	 * label all the important instructions
 	 * e.g., function calls and returns, jumps
 	 */
-	labelInstructionList(iList);
+	int ncalls = labelInstructionList(iList);
 
 	//forwardUDchain(iList, 9);
 
@@ -290,6 +307,16 @@ int main (int argc, char *argv[]) {
 		//destroyBasicBlockList(blockList);
 		//#endif
 	}
+	  /* get current time(after seq finished) */
+	  gettimeofday(&tv, &tz);
+	  tm=localtime(&tv.tv_sec);
+	  t2s=tv.tv_sec;
+	  t2m=tv.tv_usec;
+
+	  double ttt=(t2s-t1s)*1000000+(t2m-t1m);
+	  printf("ilist:%d\t ncalls: %d\t time:%fms\n", iList->numInstrs, ncalls, ttt);
+	  printf("avg/line: %f\n", ttt/iList->numInstrs);
+	  printf("avg/ncall: %f\n", ttt/ncalls);
 
 	//////////////////////////////////////////////////////////////////////////////////
 	InstrListDestroy(iList, 1);

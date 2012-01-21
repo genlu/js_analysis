@@ -279,6 +279,13 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 					EXP_PRINTF((", "));
 			}
 			EXP_PRINTF((" )"));
+		}else if(slice_flag && node->type==EXP_EVAL){
+			for(i=node->u.func.num_paras;i>0;i--){
+				expNode = (ExpTreeNode *)al_get(node->u.func.parameters, i-1);
+				printExpTreeNode(expNode, slice_flag);
+				if(i>1)
+					EXP_PRINTF((";\n"));
+			}
 		}
 		/*
 		 *  right now, print parameters of eval(), which is probably wrong
@@ -327,7 +334,12 @@ void printExpTreeNode(ExpTreeNode *node, int slice_flag){
 	case EXP_BIN:
 		EXP_PRINTF(("("));
 		//print lval
+		if(node->u.bin_op.op==OP_INITPROP)
+			EXP_PRINTF(("\""));
 		printExpTreeNode(node->u.bin_op.lval, slice_flag);
+		if(node->u.bin_op.op==OP_INITPROP)
+			EXP_PRINTF(("\""));
+
 		//print op
 		switch(node->u.bin_op.op){
 		case OP_ADD:
@@ -1706,7 +1718,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 		case JSOP_INITELEM:
 		case JSOP_INITPROP:
 			stackNode1 = popSyntaxStack(stack);			//value
-			stackNode2 = popSyntaxStack(stack);			//index for array, obj for prop
+			stackNode2 = popSyntaxStack(stack);			//index for array, obj(EXP_ARRAY_INIT node) for prop
 			if(instr->opCode==JSOP_INITELEM)
 				stackNode3 = popSyntaxStack(stack);			//EXP_ARRAY_INIT node
 
@@ -1751,8 +1763,10 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 				al_add(expTreeNode2->u.array_init.initValues, expTreeNode4);
 				EXP_SET_FLAG(expTreeNode4, EXP_IS_PROP_INIT);
 				//label slice
-				if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE))
+				if(slice_flag && INSTR_HAS_FLAG(instr, INSTR_IN_SLICE)){
+					LABEL_EXP(expTreeNode3);
 					LABEL_EXP(expTreeNode4);
+				}
 			}
 			if(instr->opCode==JSOP_INITELEM)
 				expTreeNode3->u.array_init.size++;
@@ -2316,7 +2330,9 @@ void createFuncsInSynaxTree(ArrayList *syntaxTree, ArrayList *funcCFGs, int slic
 		}//end for-loop
 		if(slice_flag && TN_HAS_FLAG(funcNode, TN_IN_SLICE)){
 			printf("\nassert: %d\n", ((Instruction *)al_get(funcNode->u.func.funcStruct->funcEntryBlock->instrs,0))->order);
-			assert(FUNC_HAS_FLAG(funcNode->u.func.funcStruct, FUNC_IN_SLICE));
+			//assert(FUNC_HAS_FLAG(funcNode->u.func.funcStruct, FUNC_IN_SLICE));
+			//if(!FUNC_HAS_FLAG(funcNode->u.func.funcStruct, FUNC_IN_SLICE))
+				//FUNC_SET_FLAG(funcNode->u.func.funcStruct, FUNC_IN_SLICE);
 		}
 	}
 }
