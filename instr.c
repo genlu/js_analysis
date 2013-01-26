@@ -378,7 +378,8 @@ void printInstruction(Instruction *ins){
 			ins->stackUse, ins->stackDef, ins->localUse, ins->localDef, \
 			ins->propUseScope, ins->propUseId, ins->propDefScope,ins->propDefId
 	);*/
-	printf("%c%c%c%c%c $%d$ #%-4u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tL_DEF2: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+	printf("%c%c%c%c%c%c $%d$ #%-4u\t0x%lX\t%-15s\tS_USE: %16lX--%-16lX\tS_DEF: %16lX-%-16lX\tL_USE: %-16lX\tL_DEF: %-16lX\tL_DEF2: %-16lX\tP_USE_SCOPE: %-16lX\tP_USE_ID: %-10ld\tP_DEF_SCOPE: %-16lX\tP_DEF_ID: %-10ld JMP_OFFSET: %d\t",
+			INSTR_HAS_FLAG(ins,INSTR_IS_ENV)?'!':' ',
 			INSTR_HAS_FLAG(ins,INSTR_ON_EVAL)?'e':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IN_SLICE)?'*':' ',
 			INSTR_HAS_FLAG(ins,INSTR_IS_BBL_START)?'S':' ',

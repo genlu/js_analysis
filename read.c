@@ -128,6 +128,9 @@ Instruction *GetInstrFromText(char *buffer){
 			INSTR_SET_FLAG(new, INSTR_IS_DOC_WRITE);
 			last_is_doc_write = true;
 		}
+		else if(!strcmp(tok, "#ENV") ){
+			INSTR_SET_FLAG(new, INSTR_IS_ENV);
+		}
 		else if(!strcmp(tok, "#LEN:")){
 			tok=strtok_r(NULL, " \t\n", &tokSave);
 			if(!tok){

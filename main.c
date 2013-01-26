@@ -110,7 +110,7 @@ int main (int argc, char *argv[]) {
 
 	//forwardUDchain(iList, 9);
 
-	//printInstrList(iList);
+	printInstrList(iList);
 
 	//#if DECOMPILE
 	if(parameter==0){
