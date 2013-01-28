@@ -138,7 +138,7 @@ struct BasicBlock{
     ArrayList *dominators;		// this an array of BasicBlocks that dominate this block
     ArrayList *dominate;		// this is an array of EDGEs that points to the blocks dominated by this block
 
-    ArrayList *immDomPreds;		//at most one element inthis list!
+    ArrayList *immDomPreds;		//at most one element in this list!
     ArrayList *immDomSuccs;
 
     uint32_t flags;

@@ -104,7 +104,7 @@ static void doSearch(ArrayList *blockList, BasicBlock *n, uint32_t flag, ArrayLi
 				//assert(block2->type==BT_SCRIPT_INVOKE);
 				//assert(al_size(block2->succs)==1);
 
-
+				//xxx this is probably wrong, check it! maybe search for edge in block2->succs that edge->head==block1
 				edge = (BlockEdge *)al_get(block2->succs, 0);
 				//assert(EDGE_HAS_FLAG(edge, EDGE_IS_SCRIPT_INVOKE));///////////////////////
 				//remove this edge from block2->succs and block1->preds
@@ -326,6 +326,7 @@ ArrayList *buildFunctionCFGs(InstrList *iList, ArrayList *blockList, ArrayList *
 					for(k=0;k<InstrListLength(iList);k++){
 						instr = getInstruction(iList, k);
 						if(instr->inBlock==edge->head){
+							assert(0);	//this should be done in concatCallsite(already)
 							instr->inBlock = edge->tail;
 						}
 					}
