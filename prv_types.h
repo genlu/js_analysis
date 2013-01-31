@@ -121,7 +121,8 @@ typedef enum {
     BT_N_BRANCH,
     BT_SCRIPT_INVOKE,
     //BT_EVAL,
-    BT_RET
+    BT_RET,
+    BT_AUG_EXIT
 } BasicBlockType;
 
 struct BasicBlock{
@@ -137,14 +138,19 @@ struct BasicBlock{
     int dfn;			//depth-first number
     ArrayList *dominators;		// this an array of BasicBlocks that dominate this block
     ArrayList *dominate;		// this is an array of EDGEs that points to the blocks dominated by this block
-
     ArrayList *immDomPreds;		//at most one element in this list!
     ArrayList *immDomSuccs;
+
+    //similar to above lists, but for this block in reverse CFG.
+    ArrayList *reverseDominators;
+    ArrayList *reverseDominate;
+    ArrayList *reverseImmDomPreds;		//again, at most one element in this list!
+    ArrayList *reverseImmDomSuccs;
 
     uint32_t flags;
     struct BasicBlock *calltarget; // this is assigned in several cases but not actually used
 
-    ADDRESS inFunction;			//filled in doSearchFuncBody()
+    ADDRESS inFunction;			//filled in traverseFuncBody()
 };
 
 
@@ -156,6 +162,7 @@ struct BasicBlock{
 #define BBL_IS_EVAL_ENTRY			(1<<5)
 #define BBL_IS_EVAL_RET				(1<<6)
 #define BBL_IS_IN_SLICE				(1<<7)
+#define BBL_IS_AUG_EXIT				(1<<8)
 
 #define BBL_FLAG_TMP0				(1<<30)
 #define BBL_FLAG_TMP1				(1<<31)
@@ -183,7 +190,7 @@ typedef struct BlockEdge{
 #define EDGE_IS_DOMINATE			(1<<6)			//this edge is an dominate-edge, i.e. in block->dominate and tail dom head
 #define EDGE_IS_COMPLEMENT			(1<<7)			//this edge is added as a complement edge, which is not existed in dynamic trace but should be in static CFG
 #define EDGE_IS_IMM_DOM				(1<<8)
-
+#define EDGE_IS_TO_AUG_EXIT			(1<<9)			//an augmented egde, points to augmented exit block for each function CFG from all BBL_IS_FUNC_RET blocks
 
 #define EDGE_IS_BRANCHED_PATH					(1<<16)
 #define EDGE_IS_ADJACENT_PATH					(1<<17)
@@ -226,6 +233,12 @@ typedef struct Function{
 	BasicBlock *funcEntryBlock;
 	char *funcName;
 	ArrayList *funcBody;		//a CFG of this function, which is a list of BasicBlocks belongs to this function
+
+	//BasicBlock *augmentedExit;
+									// all the BBL_IS_FUNC_RET blocks preceed this augmented block in each funtion CFG.
+									// the only purpose for this is for domination analysis on reversed CFGs right now.
+									// and this block is added AFTER function CFGs are seperated from main CFG,
+									// so buildFunctionCFGs should not worry about this extra field.
 }Function;
 
 

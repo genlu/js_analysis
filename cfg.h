@@ -18,12 +18,14 @@ void printNaturalLoopList(ArrayList *loopList);
 void printBasicBlockList(ArrayList *blockList);
 
 int blockIdCompare(void *i1, void *i2);
+int blockInFunctionCompare(void *i1, void *i2);
 
 ArrayList*	findLeaders(InstrList *iList);
 void 		markBasicBlockBoundary(InstrList *iList, ArrayList *leaders);
 BasicBlock*	createBasicBlock(void);
 void destroyBasicBlock(void *block);
 void printBasicBlock(BasicBlock *block);
+void printEdges(BasicBlock *block);
 
 BlockEdge *createBlockEdge(void);
 void destroyBlockEdge(void *edge);

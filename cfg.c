@@ -43,6 +43,14 @@ int blockAddrCompare(void *i1, void *i2){
 }
 
 /*
+ * compare 2 basic blocks based on if they are belonging to the same function
+ */
+int blockInFunctionCompare(void *i1, void *i2){
+	assert(i1 && i2);
+	return ((BasicBlock *)i1)->inFunction - ((BasicBlock *)i2)->inFunction;
+}
+
+/*
  * compare 2 BlockEdge by id
  */
 int edgeIdCompare(void *i1, void *i2){
@@ -137,11 +145,15 @@ void printBasicBlock(BasicBlock *block) {
 		  break;
 	  case BT_RET:
 		  if(BBL_HAS_FLAG(block, BBL_IS_HALT_NODE)){
-			  assert(al_size(block->succs)==0);
+			  //todo: better check
+			  //assert(al_size(block->succs)==0);
 			  printf("HALT");
 		  }
 		  else
 			  printf("RETURN");
+		  break;
+	  case BT_AUG_EXIT:
+		  printf("AUGMENTED_EXIT");
 		  break;
 	  default:
 		  printf("ERROR: unknown block type");
@@ -308,6 +320,12 @@ BasicBlock *createBasicBlock(void){
 	new->dominate = NULL;
 	new->immDomPreds = NULL;
 	new->immDomSuccs = NULL;
+
+	new->reverseDominators = NULL;
+	new->reverseDominate = NULL;
+	new->reverseImmDomPreds = NULL;
+	new->reverseImmDomSuccs = NULL;
+
 	new->type = BT_UNKNOWN;
 	new->flags = 0;
 	new->inFunction = 0;

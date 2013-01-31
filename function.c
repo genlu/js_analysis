@@ -46,6 +46,7 @@ Function *createFunctionNode(void){
 	func->funcEntryAddr = 0;
 	func->funcObj = al_newInt(AL_LIST_SET);;
 	func->funcEntryBlock = NULL;
+	//func->augmentedExit = NULL;
 	func->funcName = NULL;
 	func->funcBody = al_newGeneric(AL_LIST_SORTED, blockIdCompare, NULL, NULL);
 	return func;
