@@ -18,6 +18,7 @@
 #include "cfg.h"
 #include "function.h"
 #include "syntax.h"
+#include "df.h"
 
 
 
@@ -135,16 +136,21 @@ int main (int argc, char *argv[]) {
 
 
 		printBasicBlockList(funcBlockList);
-		printInstrList(iList);
+		//printInstrList(iList);
 		printf("building function CFGs...\n");
 		funcCFGs = buildFunctionCFGs(iList, funcBlockList, &funcObjTable);
 
+		printf("adding augmented exit blocks\n");
+		ArrayList *augExits = addAugmentedExitBlocks(funcBlockList);
 		//printBasicBlockList(funcBlockList);
 		//printInstrList(iList);
 		/*
 		 * find dominators for each node (basicBlock)
 		 */
 		findDominators(funcBlockList);
+
+		printf("removing augmented exit blocks\n");
+		removeAugmentedExitBlocks(funcBlockList, augExits);
 		/*
 		 * build a DFS-Tree on CFG
 		 * (tree edges are marked)
@@ -252,32 +258,7 @@ int main (int argc, char *argv[]) {
 		 */
 		deobfSlicing(iList);
 
-
-		/*    ArrayList *funcStartInstrList;		//a list of function start instructions in the slice
-    funcStartInstrList = findFuncStartInstrsInSlice(iList);*/
-
 		//printInstrList(iList);
-
-		/*todo: big change here
-    1. find all function entry instrs: 1st instr after a non-native call (1 per function/eval)
-    2. find all function exit instrs: 1st instr before a func entry instr (could be more than 1)
-    3. create a function obj table for slice
-		- with funcObj, entryAddr
-	4. collecting info for branch instruction
-		- target address for 1 way branch
-		- branch and adj address for 2 way branch
-		- todo: don't worry about and/or for now...
-    5. unlabel all instructions which:
-		- added by checkSlice(), and
-		- belong to some func/eval, and
-		- the invoke instr is not in the slice
-
-		 */
-
-		//after above steps, we could get a list of headers, and construct slice CFG based on them
-		/*    printf("InstrListClone\n");
-    sliceInstrList = InstrListClone(iList, INSTR_IN_SLICE);*/
-
 
 		processANDandORExps(iList, blockList, funcCFGs);
 		reducible = findBackEdges(blockList);

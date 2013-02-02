@@ -159,7 +159,10 @@ void printBasicBlock(BasicBlock *block) {
 		  printf("ERROR: unknown block type");
   }
   printf("\n");
-  printf("Last Instruction:\t%lx  %s\n", block->lastInstr->addr, block->lastInstr->opName);
+  if(block->lastInstr){
+	  assert(block->type!=BT_AUG_EXIT);
+	  printf("Last Instruction:\t%lx  %s\n", block->lastInstr->addr, block->lastInstr->opName);
+  }
 
 
   /********************* PREDECESSORS ********************/
@@ -366,10 +369,23 @@ void destroyBasicBlock(void *block) {
 		al_freeWithElements(bbl->immDomPreds);
 		bbl->immDomPreds=NULL;
 	}
-
 	if(bbl->immDomSuccs){
 		al_freeWithElements(bbl->immDomSuccs);
 		bbl->immDomSuccs=NULL;
+	}
+	if(bbl->reverseDominators)
+		al_free(bbl->reverseDominators);
+
+	if(bbl->reverseDominate)
+		al_freeWithElements(bbl->reverseDominate);
+
+	if(bbl->reverseImmDomPreds){
+		al_freeWithElements(bbl->reverseImmDomPreds);
+		bbl->reverseImmDomPreds=NULL;
+	}
+	if(bbl->reverseImmDomSuccs){
+		al_freeWithElements(bbl->reverseImmDomSuccs);
+		bbl->reverseImmDomSuccs=NULL;
 	}
 
 	bbl->id = -1;

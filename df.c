@@ -17,8 +17,12 @@
 #include "cfg.h"
 #include "df.h"
 
+//a flag used to ensure augmented elemented get cleaned up before proceed to
+//slicing, etc.
+static int augmented = 0;
+
 //id for augmented blocks/edges starts from -1 and decreases
-static int augBlockIdCtr;
+//static int augBlockIdCtr;	//not used cuz blocklist is sorted array list...
 static int augEdgeIdCtr;
 
 /*
@@ -31,6 +35,47 @@ void augExitPrint(void *item) {
     printEdges(augExit);
 }
 
+
+/*
+ * Free augmented exit block
+ */
+void destroyAugmentExit(void *block) {
+	BasicBlock *bbl;
+	if(!block)
+		return;
+	bbl = (BasicBlock *)block;
+	if(bbl->instrs)
+		al_free(bbl->instrs);
+	if(bbl->preds)
+		al_free(bbl->preds);
+	if(bbl->succs)
+		al_free(bbl->succs);
+	if(bbl->dominators)
+		al_free(bbl->dominators);
+	if(bbl->dominate)
+		al_free(bbl->dominate);
+	if(bbl->immDomPreds)
+		al_free(bbl->immDomPreds);
+	if(bbl->immDomSuccs)
+		al_free(bbl->immDomSuccs);
+	if(bbl->reverseDominators)
+		al_free(bbl->reverseDominators);
+	if(bbl->reverseDominate)
+		al_free(bbl->reverseDominate);
+	if(bbl->reverseImmDomPreds)
+		al_free(bbl->reverseImmDomPreds);
+	if(bbl->reverseImmDomSuccs)
+		al_free(bbl->reverseImmDomSuccs);
+
+	bbl->instrs = bbl->preds = bbl->succs =
+			bbl->dominators = bbl->dominate = bbl->immDomPreds = bbl->immDomSuccs =
+			bbl->reverseDominators = bbl->reverseDominate = bbl->reverseImmDomPreds = bbl->reverseImmDomSuccs = NULL;
+	free(bbl);
+	bbl=NULL;
+	return;
+}
+
+
 //this function should be called AFTER function blocks are cut out from main CFG
 //because we are rely on the inFunction field of block for linking return blocks to augmented block for each function
 //   after the call, blockList will include all the BT_AUG_EXIT nodes (1 for each function)
@@ -42,16 +87,17 @@ ArrayList *addAugmentedExitBlocks(ArrayList *blockList){
 		abort();
 	}
 
-	ArrayList *augmentedBlocks = al_newGeneric(AL_LIST_SET, blockInFunctionCompare, augExitPrint, NULL);
+	ArrayList *augmentedBlocks = al_newGeneric(AL_LIST_SET, blockInFunctionCompare, augExitPrint, destroyAugmentExit);
 	assert(augmentedBlocks);
 
 	int i,j;
 	BasicBlock *block1, *block2;
 	BlockEdge *augEdge = NULL;
 
-	//reset id
-	augBlockIdCtr = -1;
+	//reset id, set flag
+	//augBlockIdCtr = -1;
 	augEdgeIdCtr = -1;
+	augmented = 1;
 
 	//search for BT_RET blocks in the block list.
 	for(i=0;i<al_size(blockList);i++){
@@ -83,7 +129,7 @@ ArrayList *addAugmentedExitBlocks(ArrayList *blockList){
 			}
 			//not found, have to add block2 to augmentedBlocks and blockList
 			else{
-				block2->id = augBlockIdCtr--;
+				//block2->id = augBlockIdCtr--;
 				//note that blockList and augmentedBlocks use different function to find given block
 				//blockList use block ID, so we cant ue al_contain to check whether to find block2 in it.
 				//since it uses a newly generated unique ID.
@@ -102,10 +148,15 @@ ArrayList *addAugmentedExitBlocks(ArrayList *blockList){
 			augEdge->head = block2;
 			augEdge->id = augEdgeIdCtr--;
 			EDGE_SET_FLAG(augEdge, EDGE_IS_TO_AUG_EXIT);
+
+			printf("\nadding %d->%d\n", augEdge->tail->id, augEdge->head->id);
+
 			if(!al_contains(block2->preds, augEdge)){
 				al_add(block2->preds, augEdge);
 			}else{
 				//block2 and block1 are already connected, cant happen
+				printBasicBlock(block1);
+				printBasicBlock(block2);
 				assert(0);
 			}
 			al_add(block1->succs, augEdge);
@@ -116,6 +167,114 @@ ArrayList *addAugmentedExitBlocks(ArrayList *blockList){
 	return augmentedBlocks;
 }
 
-void removeAugmentedExitBlocks(ArrayList *blockList, ArrayList *augmentedBlocks){
 
+/*
+ * this function is used to clean up all the augmented blocks/edges from CFGs, after reverse domination analysis is done.
+ * it doesn't nothing if no augmented elements found in the CFGs.
+ * This function has to be called before loop-analysis/slicing/decompilation.
+ */
+void removeAugmentedExitBlocks(ArrayList *blockList, ArrayList *augmentedBlocks){
+	assert(blockList && augmentedBlocks);
+	if(augmented==0 || al_size(augmentedBlocks)==0)
+		return;
+
+	int i,j;
+	BasicBlock *block1, *block2;
+	BlockEdge *edge1;
+
+	printf("\naugmented blocks:\n");
+	printBasicBlockList(augmentedBlocks);
+
+	//first have to remove augmented exit block from all dominator/dominate lists in each normal basicBlock
+	//since the augmented exit block is either a leaf (in forward CFG) or root (in reverse CFG), remove it from dom tree
+	//	won't break the domination relationship of other blocks (might break tree into forest in reverse dom tree though)
+	for(i=0;i<al_size(blockList);i++){
+		block1 = (BasicBlock *)al_get(blockList, i);
+		if(block1->type==BT_AUG_EXIT)
+			continue;
+
+		printf("processing block %d\n", block1->id);
+		//check each of following lists for BT_AUG_EXIT block,
+		//	if found,remove that block (and destroy adjacent edge in dom tree)
+
+		//also, only one aug exit block in each CFG, so a BT_AUG_EXIT can only appear at most once in each of following lists
+		if(block1->dominators){
+			for(j=0;j<al_size(block1->dominators);j++){
+				block2 = (BasicBlock *)al_get(block1->dominators, j);
+				if(block2->type==BT_AUG_EXIT){
+					al_remove(block1->dominators, (void *)block2);
+					break;
+				}
+			}
+		}
+		if(block1->dominate){
+			for(j=0;j<al_size(block1->dominate);j++){
+				edge1 = (BlockEdge *)al_get(block1->dominate, j);
+				block2 = edge1->head;
+				if(block2->type==BT_AUG_EXIT){	//cant use al_contains since the compare function only compare inFunction field
+					al_remove(block1->dominate, (void *)edge1);
+					destroyBlockEdge(edge1);
+					break;
+				}
+			}
+		}
+		if(block1->immDomPreds){
+			for(j=0;j<al_size(block1->immDomPreds);j++){
+				edge1 = (BlockEdge *)al_get(block1->immDomPreds, j);
+				block2 = edge1->tail;
+				if(block2->type==BT_AUG_EXIT)
+					assert(0);
+			}
+		}
+		if(block1->immDomSuccs){
+			for(j=0;j<al_size(block1->immDomSuccs);j++){
+				edge1 = (BlockEdge *)al_get(block1->immDomSuccs, j);
+				block2 = edge1->head;
+				if(block2->type==BT_AUG_EXIT){
+					al_remove(block1->immDomSuccs, (void *)edge1);
+					al_remove(block2->immDomPreds, (void *)edge1);
+					destroyBlockEdge(edge1);
+					break;
+				}
+			}
+		}
+		//todo
+		if(block1->reverseDominators){
+
+		}
+		if(block1->reverseDominate){
+
+		}
+		if(block1->reverseImmDomPreds){
+
+		}
+		if(block1->reverseImmDomSuccs){
+
+		}
+	}
+
+
+	for(i=0;i<al_size(augmentedBlocks);i++){
+		block1 = (BasicBlock *)al_get(augmentedBlocks, i);
+		assert(block1->type==BT_AUG_EXIT);
+		assert(al_size(block1->succs)==0);
+
+		//get each inward edge and remove itself from each predecessing BT_RET block
+		for(j=0;j<al_size(block1->preds);j++){
+			edge1 = (BlockEdge *)al_get(block1->preds, j);
+			assert(EDGE_HAS_FLAG(edge1, EDGE_IS_TO_AUG_EXIT)&&edge1->head==block1);
+			block2 = edge1->tail;
+			assert(block2->type==BT_RET);
+			assert(al_size(block2->succs)==1);	//each BT_RET block can only have one successor
+			al_remove(block2->succs, (void *)edge1);
+			assert(al_size(block2->succs)==0);
+		}
+		//free all augmented edges point to block1, but not the list itself (which will be done when block1 is destroyed)
+		al_clearAndFreeElements(block1->preds);
+		//remove block1 from block list, but keep it in augmentedBlocks for now
+		al_remove(blockList, (void *)block1);
+		assert(!al_contains(blockList, (void *)block1));
+	}
+	al_freeWithElements(augmentedBlocks);
+	return;
 }
