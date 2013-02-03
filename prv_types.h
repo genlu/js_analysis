@@ -147,6 +147,8 @@ struct BasicBlock{
     ArrayList *reverseImmDomPreds;		//again, at most one element in this list!
     ArrayList *reverseImmDomSuccs;
 
+    ArrayList *reverseDomFrontier;
+
     uint32_t flags;
     struct BasicBlock *calltarget; // this is assigned in several cases but not actually used
 
@@ -191,6 +193,8 @@ typedef struct BlockEdge{
 #define EDGE_IS_COMPLEMENT			(1<<7)			//this edge is added as a complement edge, which is not existed in dynamic trace but should be in static CFG
 #define EDGE_IS_IMM_DOM				(1<<8)
 #define EDGE_IS_TO_AUG_EXIT			(1<<9)			//an augmented egde, points to augmented exit block for each function CFG from all BBL_IS_FUNC_RET blocks
+#define EDGE_IS_REV_DOMINATE		(1<<10)
+#define EDGE_IS_REV_IMM_DOM			(1<<11)
 
 #define EDGE_IS_BRANCHED_PATH					(1<<16)
 #define EDGE_IS_ADJACENT_PATH					(1<<17)

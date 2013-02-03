@@ -12,5 +12,6 @@
 
 ArrayList *addAugmentedExitBlocks(ArrayList *blockList);
 void 	removeAugmentedExitBlocks(ArrayList *blockList, ArrayList *augmentedBlocks);
+void findReverseDominators(ArrayList *blockList);
 
 #endif /* DF_H_ */

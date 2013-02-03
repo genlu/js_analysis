@@ -111,7 +111,7 @@ int main (int argc, char *argv[]) {
 
 	//forwardUDchain(iList, 9);
 
-	printInstrList(iList);
+	//printInstrList(iList);
 
 	//#if DECOMPILE
 	if(parameter==0){
@@ -135,10 +135,11 @@ int main (int argc, char *argv[]) {
 		funcBlockList = buildDynamicCFG(iList);
 
 
-		printBasicBlockList(funcBlockList);
+		//printBasicBlockList(funcBlockList);
 		//printInstrList(iList);
 		printf("building function CFGs...\n");
 		funcCFGs = buildFunctionCFGs(iList, funcBlockList, &funcObjTable);
+		printBasicBlockList(funcBlockList);
 
 		printf("adding augmented exit blocks\n");
 		ArrayList *augExits = addAugmentedExitBlocks(funcBlockList);
@@ -147,7 +148,10 @@ int main (int argc, char *argv[]) {
 		/*
 		 * find dominators for each node (basicBlock)
 		 */
+		printf("finding dominators\n");
 		findDominators(funcBlockList);
+		printf("finding reverse dominators\n");
+		findReverseDominators(funcBlockList);
 
 		printf("removing augmented exit blocks\n");
 		removeAugmentedExitBlocks(funcBlockList, augExits);

@@ -238,18 +238,45 @@ void removeAugmentedExitBlocks(ArrayList *blockList, ArrayList *augmentedBlocks)
 				}
 			}
 		}
-		//todo
 		if(block1->reverseDominators){
-
+			for(j=0;j<al_size(block1->reverseDominators);j++){
+				block2 = (BasicBlock *)al_get(block1->reverseDominators, j);
+				if(block2->type==BT_AUG_EXIT){
+					al_remove(block1->reverseDominators, (void *)block2);
+					break;
+				}
+			}
 		}
 		if(block1->reverseDominate){
-
+			for(j=0;j<al_size(block1->reverseDominate);j++){
+				edge1 = (BlockEdge *)al_get(block1->reverseDominate, j);
+				block2 = edge1->head;
+				if(block2->type==BT_AUG_EXIT){	//cant use al_contains since the compare function only compare inFunction field
+					al_remove(block1->reverseDominate, (void *)edge1);
+					destroyBlockEdge(edge1);
+					break;
+				}
+			}
 		}
 		if(block1->reverseImmDomPreds){
-
+			for(j=0;j<al_size(block1->reverseImmDomPreds);j++){
+				edge1 = (BlockEdge *)al_get(block1->reverseImmDomPreds, j);
+				block2 = edge1->tail;
+				if(block2->type==BT_AUG_EXIT){
+					al_remove(block1->reverseImmDomPreds, (void *)edge1);
+					al_remove(block2->reverseImmDomSuccs, (void *)edge1);
+					destroyBlockEdge(edge1);
+					break;
+				}
+			}
 		}
 		if(block1->reverseImmDomSuccs){
-
+			for(j=0;j<al_size(block1->reverseImmDomSuccs);j++){
+				edge1 = (BlockEdge *)al_get(block1->reverseImmDomSuccs, j);
+				block2 = edge1->head;
+				if(block2->type==BT_AUG_EXIT)
+					assert(0);
+			}
 		}
 	}
 
@@ -278,3 +305,255 @@ void removeAugmentedExitBlocks(ArrayList *blockList, ArrayList *augmentedBlocks)
 	al_freeWithElements(augmentedBlocks);
 	return;
 }
+
+
+
+/*
+ * return true if block1 dominate block2 in reversed CFG
+ */
+bool reverseDominate(BasicBlock *block1, BasicBlock *block2){
+	assert(block1&&block2);
+	assert(block1->reverseDominate);
+	int i;
+	BlockEdge *edge;
+	for(i=0;i<al_size(block1->reverseDominate);i++){
+		edge = al_get(block1->reverseDominate, i);
+		if(edge->head->id == block2->id)
+			return true;
+	}
+	return false;
+}
+
+void printRevDominators(ArrayList *blockList){
+	int i,j;
+	BasicBlock *b1, *b2;
+	printf("\nReverse Dominators for each block\n");
+	for(i=0;i<al_size(blockList);i++){
+		b1 = (BasicBlock *)al_get(blockList, i);
+		printf(" Reverse Dominators of block %3d:\t", b1->id);
+		for(j=0;j<al_size(b1->reverseDominators);j++){
+			b2 = (BasicBlock *)al_get(b1->reverseDominators, j);
+			printf("%d\t", b2->id);
+		}
+		printf("\n");
+	}
+}
+
+void printRevDomList(ArrayList *blockList){
+	int i,j;
+	BasicBlock *b1;
+	BlockEdge *e;
+	printf("\nRevDomListfor each block\n");
+	for(i=0;i<al_size(blockList);i++){
+		b1 = (BasicBlock *)al_get(blockList, i);
+		printf(" blocks reverse dominated by block %3d:\t", b1->id);
+		for(j=0;j<al_size(b1->reverseDominate);j++){
+			e = (BlockEdge *)al_get(b1->reverseDominate, j);
+			assert(EDGE_HAS_FLAG(e, EDGE_IS_REV_DOMINATE));
+			printf("\t%d\t", e->head->id);
+		}
+		printf("\n");
+	}
+}
+
+void printRevImmDomList(ArrayList *blockList){
+	int i,j;
+	BasicBlock *b1;
+	BlockEdge *e;
+	printf("\nReverse Imm Dom List for each block\n");
+	for(i=0;i<al_size(blockList);i++){
+		b1 = (BasicBlock *)al_get(blockList, i);
+		printf(" blocks reserve immediately dominated by block %3d:\t", b1->id);
+		for(j=0;j<al_size(b1->reverseImmDomSuccs);j++){
+			e = (BlockEdge *)al_get(b1->reverseImmDomSuccs, j);
+			printf("\t%d\t", e->head->id);
+		}
+		printf("\n");
+	}
+}
+
+/*
+ * auxiliary function used by findReverseDominators()
+ */
+ArrayList *findReverseDominatorsHelper(BasicBlock *block){
+	//printf("findReverseDominatorsHelper: id %d\n", block->id);
+
+	assert(block->type != BT_AUG_EXIT);
+
+	int i;
+	ArrayList *revDominators, *revDominatorsTemp;
+	BasicBlock *predNode;	//in reversed CFG, predeccsor node is the successor of current node in CFG
+
+	/*
+	 * D(n) = {n} 'union' ('intersection' D(p) | for each p 'in' preds(n))
+	 */
+	predNode = (BasicBlock *)((BlockEdge *)al_get(block->succs, 0))->head;
+	revDominators = revDominatorsTemp = al_clone(predNode->reverseDominators);
+	assert(revDominators && revDominatorsTemp);
+
+	for(i=1;i<al_size(block->succs);i++){
+		predNode = (BasicBlock *)((BlockEdge *)al_get(block->succs, i))->head;
+		revDominators = al_intersection(revDominatorsTemp, predNode->reverseDominators);
+		al_free(revDominatorsTemp);
+		revDominatorsTemp = NULL;
+		revDominatorsTemp = revDominators;
+	}
+
+	assert(revDominators);
+	al_add(revDominators, (void *)block);
+
+	return revDominators;
+}
+
+
+
+//todo: modify following functions for reversed analysis
+
+/*
+ * find all the dominators for each basicBlock in the reversed CFG
+ * this function would create following lists for each BasicBlock:
+ *  ArrayList *reverseDominators;
+    ArrayList *reverseDominate;
+    ArrayList *reverseImmDomPreds;
+    ArrayList *reverseImmDomSuccs;
+ */
+void findReverseDominators(ArrayList *blockList){
+	assert(blockList);
+	BasicBlock *block, *block2, *block3;
+	ArrayList *domTemp;
+	BlockEdge *domEdge;
+	int change;
+	int i,j,k;
+
+	/* Initialize D(n) for each node n.
+	 * D(n) = {n0}, if n==n0
+	 * D(n) = N (all nodes), otherwise
+	 * Here entry nodes represented by all augmented exit nodes
+	 */
+	for(i=0;i<al_size(blockList);i++){
+		block = al_get(blockList, i);
+		if(block->reverseDominators){
+			al_free(block->reverseDominators);
+		}
+		printf("block#%d\t", block->id);
+		//block 0 is garanteed to be the entry node
+		if(block->type == BT_AUG_EXIT){
+			printf("entry\n");
+			block->reverseDominators = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
+			al_add(block->reverseDominators, (void *)block);
+		}
+		else{
+			printf("reg\n");
+			block->reverseDominators = al_clone(blockList);
+			block->reverseDominators->al_type = AL_LIST_SET;
+			block->reverseDominators->al_print = NULL;
+			block->reverseDominators->al_free = NULL;
+		}
+	}
+
+	//printRevDominators(blockList);
+
+	do{
+		change = 0;
+		//for each node != n0
+		for(i=0;i<al_size(blockList);i++){
+			block = (BasicBlock *)al_get(blockList,i);
+			if(block->type == BT_AUG_EXIT)
+				continue;
+			domTemp = findReverseDominatorsHelper(block);
+			assert(domTemp);
+
+			if(al_setEquals(block->reverseDominators, domTemp)){
+				al_free(domTemp);
+				domTemp = NULL;
+			}else{
+				al_free(block->reverseDominators);
+				block->reverseDominators = NULL;
+				block->reverseDominators = domTemp;
+				change++;
+			}
+
+		}//end for-loop
+	}while(change);
+
+	printRevDominators(blockList);
+
+
+	/* CAUTION - IMPORTANT:
+	 * 	following 2 loops MUST starts from the end of arraylist and decrement i to 1st element
+	 *  otherwise reverseDominate and reverseImmDomSuccs fields used would be NULL
+	 */
+
+	//calculate block->reverseDominate
+	printf("\ncomputing reverse dominate lists\n");
+	for(i=al_size(blockList)-1;i>=0;i--){
+		printf("processing block %d\n", block->id);
+		block = (BasicBlock *)al_get(blockList,i);
+		if(block->reverseDominate){
+			al_freeWithElements(block->reverseDominate);
+		}
+		block->reverseDominate = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		assert(block->reverseDominate);
+		for(j=0;j<al_size(block->reverseDominators);j++){
+			//block2 reverse dominates block
+			block2 =  (BasicBlock *)al_get(block->reverseDominators,j);
+			domEdge = createBlockEdge();
+			domEdge->tail = block2;
+			domEdge->head = block;
+			EDGE_SET_FLAG(domEdge, EDGE_IS_REV_DOMINATE);
+			if(!al_contains(block2->reverseDominate, domEdge)){
+				al_add(block2->reverseDominate, domEdge);
+			}else{
+				destroyBlockEdge(domEdge);
+			}
+		}
+	}
+
+	printRevDomList(blockList);
+
+	//construct rev dom tree
+	for(i=al_size(blockList)-1;i>=0;i--){
+		block = (BasicBlock *)al_get(blockList,i);
+		if(block->reverseImmDomPreds){
+			//al_freeWithElements(block->immDomPreds);
+			al_free(block->reverseImmDomPreds);
+			block->reverseImmDomPreds=NULL;
+		}
+		if(block->reverseImmDomSuccs){
+			al_freeWithElements(block->reverseImmDomSuccs);
+			block->reverseImmDomSuccs=NULL;
+		}
+		block->reverseImmDomPreds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		block->reverseImmDomSuccs = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+
+		for(j=0;j<al_size(block->reverseDominators);j++){
+			//block2 reverse dominates block
+			block2 =  (BasicBlock *)al_get(block->reverseDominators,j);
+			if(block2->id == block->id){
+				continue;
+			}
+			for(k=0;k<al_size(block->reverseDominators);k++){
+				block3 = (BasicBlock *)al_get(block->reverseDominators,k);
+				if(block3->id == block->id){
+					continue;
+				}
+				if(!reverseDominate(block3, block2)){
+					block2 = NULL;		//then block2 cannot be the imm dominator of block, set to NULL as a flag
+					break;
+				}
+			}
+			if(!block2)
+				continue;
+			//printf("block%d is imm-reverse dominator of block%d\n", block2->id, block->id);
+			//then block is reveres imm dominator of block
+			domEdge = createBlockEdge();
+			domEdge->tail = block2;
+			domEdge->head = block;
+			EDGE_SET_FLAG(domEdge, EDGE_IS_REV_IMM_DOM);
+			al_add(block->reverseImmDomPreds, domEdge);
+			al_add(block2->reverseImmDomSuccs, domEdge);
+		}
+	}
+	//printImmDomList(blockList);
+}
+

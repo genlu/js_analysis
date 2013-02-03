@@ -19,6 +19,7 @@ void printBasicBlockList(ArrayList *blockList);
 
 int blockIdCompare(void *i1, void *i2);
 int blockInFunctionCompare(void *i1, void *i2);
+int edgeBlockIdCompare(void *i1, void *i2);
 
 ArrayList*	findLeaders(InstrList *iList);
 void 		markBasicBlockBoundary(InstrList *iList, ArrayList *leaders);
