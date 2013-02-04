@@ -329,6 +329,8 @@ BasicBlock *createBasicBlock(void){
 	new->reverseImmDomPreds = NULL;
 	new->reverseImmDomSuccs = NULL;
 
+	new->reverseDomFrontier = NULL;
+
 	new->type = BT_UNKNOWN;
 	new->flags = 0;
 	new->inFunction = 0;
@@ -386,6 +388,9 @@ void destroyBasicBlock(void *block) {
 	if(bbl->reverseImmDomSuccs){
 		al_freeWithElements(bbl->reverseImmDomSuccs);
 		bbl->reverseImmDomSuccs=NULL;
+	}
+	if(bbl->reverseDomFrontier){
+		al_free(bbl->reverseDomFrontier);
 	}
 
 	bbl->id = -1;

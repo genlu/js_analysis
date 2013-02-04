@@ -303,6 +303,7 @@ void removeAugmentedExitBlocks(ArrayList *blockList, ArrayList *augmentedBlocks)
 		assert(!al_contains(blockList, (void *)block1));
 	}
 	al_freeWithElements(augmentedBlocks);
+	augmented=0;
 	return;
 }
 
@@ -555,5 +556,60 @@ void findReverseDominators(ArrayList *blockList){
 		}
 	}
 	//printImmDomList(blockList);
+}
+
+
+/*
+ * TODO: put the psudocode of algorithm here for future referenece
+ */
+/*
+ * input: root block of a reveres dom tree
+ * output: dominance frontier for each block in given reverse dom tree
+ * 			(i.e. filling reverseDomFrontier field for each block in given tree)
+ */
+void computeReverseDominanceFrontiersHelper(BasicBlock *root){
+	//use a post order travesal on the reverse dom tree
+	int i;
+	BasicBlock *child;
+	BlockEdge *edge;
+	//process children first
+	for(i=0;i<al_size(root->reverseImmDomSuccs);i++){
+		edge = (BlockEdge *)al_get(root->reverseImmDomSuccs, i);
+		assert(EDGE_HAS_FLAG(edge, EDGE_IS_REV_IMM_DOM));
+		child = edge->head;
+		computeReverseDominanceFrontiersHelper(child);
+	}
+	//process root
+	//1. DF[root] = empty
+	if(root->reverseDomFrontier){
+		al_free(root->reverseDomFrontier);
+	}
+	root->reverseDomFrontier = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
+	//2. FOREACH Y in succ(root) in CFG DO:
+	//		IF idom(Y) != root THEN DF[root] = DF[root] union {Y} ENDIF
+	//	 ENDFOR
+
+	//3. FOREACH Z in all children(root) in dom tree DO:
+	//		FOREACH Y in DF[Z] DO:
+	//			IF idom(Y) != root THEN DF[root] = DF[X] union {Y} ENDIF
+	//	 	ENDFOR
+	//	 ENDFOR
+
+}
+
+/*
+ * this function compute dominance frontier for each block in reversed CFGs.
+ */
+void computeReverseDominanceFrontiers(ArrayList *blockList){
+	assert(augmented!=0);
+	int i;
+	BasicBlock *block;
+	for(i=0;i<al_size(blockList);i++){
+		block = (BasicBlock *)al_get(blockList, i);
+		if(block->type==BT_AUG_EXIT){	//block is the root of a reverse dom tree
+			assert(al_size(block->reverseImmDomPreds)==0);
+			computeReverseDominanceFrontiersHelper(block);
+		}
+	}
 }
 
