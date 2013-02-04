@@ -95,3 +95,9 @@ void printOpStack(OpStack *s){
 }
 
 
+int countOpStack(OpStack *s){
+	assert(s);
+	return s->sp;
+}
+
+

@@ -153,8 +153,9 @@ int main (int argc, char *argv[]) {
 		printf("finding reverse dominators\n");
 		findReverseDominators(funcBlockList);
 
-		printf("computing reverse dominance frontiers\n");
+		printf("computing reverse dominance frontiers...\n");
 		computeReverseDominanceFrontiers(funcBlockList);
+		printRevDominanceFrontiers(funcBlockList);
 
 		printf("removing augmented exit blocks\n");
 		removeAugmentedExitBlocks(funcBlockList, augExits);

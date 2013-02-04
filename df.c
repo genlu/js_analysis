@@ -16,6 +16,7 @@
 #include "prv_types.h"
 #include "cfg.h"
 #include "df.h"
+#include "stack_sim.h"
 
 //a flag used to ensure augmented elemented get cleaned up before proceed to
 //slicing, etc.
@@ -340,6 +341,21 @@ void printRevDominators(ArrayList *blockList){
 	}
 }
 
+void printRevDominanceFrontiers(ArrayList *blockList){
+	int i,j;
+	BasicBlock *b1, *b2;
+	printf("\nReverse Dominance Frontier for each block\n");
+	for(i=0;i<al_size(blockList);i++){
+		b1 = (BasicBlock *)al_get(blockList, i);
+		printf(" Reverse DF of block %3d:\t", b1->id);
+		for(j=0;j<al_size(b1->reverseDomFrontier);j++){
+			b2 = (BasicBlock *)al_get(b1->reverseDomFrontier, j);
+			printf("%d\t", b2->id);
+		}
+		printf("\n");
+	}
+}
+
 void printRevDomList(ArrayList *blockList){
 	int i,j;
 	BasicBlock *b1;
@@ -559,6 +575,12 @@ void findReverseDominators(ArrayList *blockList){
 }
 
 
+
+void printBasicBlockId(void *bbl){
+	BasicBlock *block = (BasicBlock *)bbl;
+	printf("%d", block->id);
+	return;
+}
 /*
  * TODO: put the psudocode of algorithm here for future referenece
  */
@@ -570,7 +592,7 @@ void findReverseDominators(ArrayList *blockList){
 void computeReverseDominanceFrontiersHelper(BasicBlock *root){
 	//use a post order travesal on the reverse dom tree
 	int i;
-	BasicBlock *child;
+	BasicBlock *child, *Y, *Z;
 	BlockEdge *edge;
 	//process children first
 	for(i=0;i<al_size(root->reverseImmDomSuccs);i++){
@@ -585,16 +607,54 @@ void computeReverseDominanceFrontiersHelper(BasicBlock *root){
 		al_free(root->reverseDomFrontier);
 	}
 	root->reverseDomFrontier = al_newGeneric(AL_LIST_SET, blockIdCompare, NULL, NULL);
-	//2. FOREACH Y in succ(root) in CFG DO:
+	//2. FOREACH Y in succ(root) in reverse CFG DO:      (succ(root) in reversed CFG == preds(root) in normal CFG)
 	//		IF idom(Y) != root THEN DF[root] = DF[root] union {Y} ENDIF
 	//	 ENDFOR
-
-	//3. FOREACH Z in all children(root) in dom tree DO:
+	for(i=0;i<al_size(root->preds);i++){
+		edge = (BlockEdge *)al_get(root->preds, i);
+		Y = edge->tail;
+		assert(al_size(Y->reverseImmDomPreds)==1);
+		BlockEdge *rev_idom_Y = (BlockEdge *)al_get(Y->reverseImmDomPreds, 0);
+		assert(EDGE_HAS_FLAG(rev_idom_Y, EDGE_IS_REV_IMM_DOM));
+		if(rev_idom_Y->tail->id != root->id){
+			al_add(root->reverseDomFrontier, Y);
+		}
+	}
+	//3. FOREACH Z in all descendants(root) in dom tree DO:
 	//		FOREACH Y in DF[Z] DO:
-	//			IF idom(Y) != root THEN DF[root] = DF[X] union {Y} ENDIF
+	//			IF idom(Y) != root THEN DF[root] = DF[root] union {Y} ENDIF
 	//	 	ENDFOR
 	//	 ENDFOR
-
+	OpStack *stack;		//use a stack for DFS on reversed dom tree
+	stack = initOpStack(printBasicBlockId);
+	assert(stack);
+	//first push all children of root in 'rev dom tree' to stack
+	for(i=0;i<al_size(root->reverseImmDomSuccs);i++){
+		edge = (BlockEdge *)al_get(root->reverseImmDomSuccs, i);
+		assert(EDGE_HAS_FLAG(edge, EDGE_IS_REV_IMM_DOM));
+		pushOpStack(stack, (void *)(edge->head));
+	}
+	assert(al_size(root->reverseImmDomSuccs)==countOpStack(stack));
+	//then proccess each node in stack ad push its children in it
+	while(!isOpStackEmpty(stack)){
+		Z = (BasicBlock *)popOpStack(stack);
+		//push Z's children
+		for(i=0;i<al_size(Z->reverseImmDomSuccs);i++){
+			edge = (BlockEdge *)al_get(Z->reverseImmDomSuccs, i);
+			assert(EDGE_HAS_FLAG(edge, EDGE_IS_REV_IMM_DOM));
+			pushOpStack(stack, (void *)(edge->head));
+		}
+		//processing Z
+		for(i=0;i<al_size(Z->reverseDomFrontier);i++){
+			Y = (BasicBlock *)al_get(Z->reverseDomFrontier, i);
+			assert(al_size(Y->reverseImmDomPreds)==1);
+			BlockEdge *rev_idom_Y = (BlockEdge *)al_get(Y->reverseImmDomPreds, 0);
+			assert(EDGE_HAS_FLAG(rev_idom_Y, EDGE_IS_REV_IMM_DOM));
+			if(rev_idom_Y->tail->id != root->id){
+				al_add(root->reverseDomFrontier, Y);
+			}
+		}
+	}
 }
 
 /*
@@ -607,6 +667,7 @@ void computeReverseDominanceFrontiers(ArrayList *blockList){
 	for(i=0;i<al_size(blockList);i++){
 		block = (BasicBlock *)al_get(blockList, i);
 		if(block->type==BT_AUG_EXIT){	//block is the root of a reverse dom tree
+			printf("processing (BT_AUG_EXIT) block %d\n", block->id);
 			assert(al_size(block->reverseImmDomPreds)==0);
 			computeReverseDominanceFrontiersHelper(block);
 		}

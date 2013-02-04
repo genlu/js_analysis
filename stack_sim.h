@@ -13,5 +13,6 @@ void *popOpStack(OpStack *s);
 void *peekOpStack(OpStack *s);
 void printOpStack(OpStack *s);
 bool isOpStackEmpty(OpStack *s);
+int countOpStack(OpStack *s);
 
 #endif
