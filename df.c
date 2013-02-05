@@ -504,8 +504,8 @@ void findReverseDominators(ArrayList *blockList){
 	//calculate block->reverseDominate
 	printf("\ncomputing reverse dominate lists\n");
 	for(i=al_size(blockList)-1;i>=0;i--){
-		printf("processing block %d\n", block->id);
 		block = (BasicBlock *)al_get(blockList,i);
+		printf("processing block %d\n", block->id);
 		if(block->reverseDominate){
 			al_freeWithElements(block->reverseDominate);
 		}

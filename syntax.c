@@ -2568,6 +2568,8 @@ SyntaxTreeNode *isStatementsEndWithGoto(ArrayList *syntaxTree, SyntaxTreeNode *n
 		break;
 	case TN_BLOCK:
 		i = al_size(node->u.block.statements);
+		if(i==0)
+			break;
 		tempNode = al_get(node->u.block.statements, i-1);
 		ret = isStatementsEndWithGoto(syntaxTree, tempNode);
 		break;

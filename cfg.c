@@ -1498,11 +1498,13 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList, ArrayList *func
 		Function *func = NULL;
 		for(i=0;i<listSize;i++){
 			tempBlock = (BasicBlock *)al_get(concatList, i);
-			tempBlock2 = findBasicBlockInFunctionCFGs(funcCFGs, tempBlock->id, &func);
-			//printf("%lx\n", func);
-			assert(tempBlock2);assert(func);
-			al_remove(func->funcBody, (void *)tempBlock2);
-			assert(tempBlock == tempBlock2);
+			if(tempBlock->inFunction!=0){
+				tempBlock2 = findBasicBlockInFunctionCFGs(funcCFGs, tempBlock->id, &func);
+				//printf("%lx\n", func);
+				assert(tempBlock2);assert(func);
+				al_remove(func->funcBody, (void *)tempBlock2);
+				assert(tempBlock == tempBlock2);
+			}
 			if(i==0){
 				destroyBasicBlockForConCat(tempBlock, 1);
 			}else if(i==listSize-1){
@@ -1512,8 +1514,9 @@ void processANDandORExps(InstrList *iList, ArrayList *blockList, ArrayList *func
 			}
 			tempBlock=NULL;
 		}
-		assert(func);
-		al_add(func->funcBody, newBlock);
+
+		if(func)
+			al_add(func->funcBody, newBlock);
 
 		al_free(concatList);
 		concatList = NULL;

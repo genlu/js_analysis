@@ -143,13 +143,16 @@ int main (int argc, char *argv[]) {
 
 		printf("adding augmented exit blocks\n");
 		ArrayList *augExits = addAugmentedExitBlocks(funcBlockList);
+
 		//printBasicBlockList(funcBlockList);
 		//printInstrList(iList);
+
 		/*
 		 * find dominators for each node (basicBlock)
 		 */
 		printf("finding dominators\n");
 		findDominators(funcBlockList);
+
 		printf("finding reverse dominators\n");
 		findReverseDominators(funcBlockList);
 
