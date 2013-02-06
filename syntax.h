@@ -180,7 +180,10 @@ typedef enum {
 	TN_RETEXP,
 	TN_EXP,		//expression
 	TN_DEFVAR,
-	TN_WHILE
+	TN_WHILE,
+
+	TN_TRY_CATCH,
+	TN_THROW		//throw uses only the  in SyntaxTreeNode
 } SyntaxTreeNodeType;
 
 
@@ -234,6 +237,12 @@ struct SyntaxTreeNode{
 			ArrayList 	*else_path;
 		} if_else;
 
+		//current implementation is incomplete and only for signature function generation
+		struct{
+			ArrayList *try_body;
+			ArrayList *catch_body;
+		} try_catch;
+
 		//todo:
 		//switch
 	} u;
@@ -251,6 +260,10 @@ struct SyntaxTreeNode{
 
 
 #define TN_IN_SLICE						(1<<16)
+#define TN_IS_CHECK_POINT				(1<<17)	//all if(decisionVec[index++]!=THIS_PATH) throw "wrong path"
+#define TN_IS_SIG_FUNCTION				(1<<18)	//including function, try-catch statement,
+												//  return false in catch and return true at the end of function
+												// all check points and decision vector
 
 #define	TN_SET_FLAG(tn, flag)		(tn->flags |= flag)
 #define	TN_CLR_FLAG(tn, flag)		(tn->flags &= ~flag)

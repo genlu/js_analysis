@@ -368,7 +368,8 @@ void destroyBasicBlock(void *block) {
 		al_freeWithElements(bbl->dominate);
 
 	if(bbl->immDomPreds){
-		al_freeWithElements(bbl->immDomPreds);
+		al_free(bbl->immDomPreds);
+		//al_freeWithElements(bbl->immDomPreds);
 		bbl->immDomPreds=NULL;
 	}
 	if(bbl->immDomSuccs){

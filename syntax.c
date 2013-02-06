@@ -730,6 +730,29 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		}
 		break;
 
+	case TN_THROW:
+		SYN_PRINTF(("throw "));
+		printExpTreeNode(node->u.expNode, slice_flag);
+		SYN_PRINTF((";"));
+		break;
+
+	case TN_TRY_CATCH:
+		SYN_PRINTF((" try {\n"));
+		for(i=0;i<al_size(node->u.try_catch.try_body);i++){
+			sTreeNode = (SyntaxTreeNode *)al_get(node->u.try_catch.try_body, i);
+			printSyntaxTreeNode(sTreeNode, slice_flag);
+		}
+
+		SYN_PRINTF(("\n}"));
+
+		SYN_PRINTF(("catch(e) {\n"));
+		for(i=0;i<al_size(node->u.try_catch.catch_body);i++){
+			sTreeNode = (SyntaxTreeNode *)al_get(node->u.try_catch.catch_body, i);
+			printSyntaxTreeNode(sTreeNode, slice_flag);
+		}
+		SYN_PRINTF((" \n}\n"));
+		break;
+
 	default:
 		break;
 	}//end switch
@@ -2139,6 +2162,10 @@ void transformGOTOsInLoopBlock(SyntaxTreeNode *loopBlock, NaturalLoop *loop){
 	case TN_DEFVAR:
 	case TN_WHILE:
 	case TN_FUNCTION:
+		break;
+	case TN_THROW:
+	case TN_TRY_CATCH:
+		assert(0);
 		break;
 	}
 	/*

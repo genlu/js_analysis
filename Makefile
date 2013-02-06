@@ -1,8 +1,8 @@
 INCLUDES = 
 LIBDIRS = 
 
-CFILES = array_list.c al_helper.c read.c instr.c stack_sim.c writeSet.c slicing.c cfg.c function.c opcode.c syntax.c df.c main.c
-HEADERS = array_list.h al_helper.h read.h instr.h stack_sim.h writeSet.h slicing.h cfg.h function.h opcode.h syntax.h df.h
+CFILES = array_list.c al_helper.c read.c instr.c stack_sim.c writeSet.c slicing.c cfg.c function.c opcode.c syntax.c df.c sig_function.c main.c
+HEADERS = array_list.h al_helper.h read.h instr.h stack_sim.h writeSet.h slicing.h cfg.h function.h opcode.h syntax.h df.h sig_function.h
 OFILES = $(patsubst %.c, %.o, $(CFILES)) 
 
 CC = gcc
