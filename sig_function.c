@@ -1,6 +1,9 @@
 /*
  * sig_function.c
  *
+ *		all the syntaxTreeNode and expTreeNode are label as in_slice
+ *
+ *
  *  Created on: Feb 5, 2013
  *      Author: genlu
  */
@@ -22,12 +25,13 @@
 char *vectorStr = "decisionVector";
 char *vectorIndex = "vecIndex";
 char *exceptionStr = "wrong path";
+char *sigFuncStr = "signatureFunction";
 
 SyntaxTreeNode *createReturnBool(int b){
 	SyntaxTreeNode *retNode;
 	ExpTreeNode *expNode1;
 
-	retNode = createSyntaxTreeNode;
+	retNode = createSyntaxTreeNode();
 	assert(retNode);
 	TN_SET_FLAG(retNode, TN_IN_SLICE);
 	retNode->type = TN_RETEXP;
@@ -52,8 +56,8 @@ SyntaxTreeNode *createReturnBool(int b){
  * 		return false;
  * }
 */
-SyntaxTreeNode *createTryCatch(){
-	SyntaxTreeNode *tryCatchNode, syntaxNode1;
+SyntaxTreeNode *createTryCatchSigFunc(){
+	SyntaxTreeNode *tryCatchNode, *syntaxNode1;
 
 	tryCatchNode = createSyntaxTreeNode();
 	assert(tryCatchNode);
@@ -67,7 +71,7 @@ SyntaxTreeNode *createTryCatch(){
 	TN_SET_FLAG(syntaxNode1, TN_IN_SLICE);
 	assert(syntaxNode1);
 
-	al_add(tryCatchNode->u.try_catch.catch_body, syntaxNode1);
+	al_add(tryCatchNode->u.try_catch.catch_body, (void*)syntaxNode1);
 
 	return tryCatchNode;
 }
@@ -75,6 +79,7 @@ SyntaxTreeNode *createTryCatch(){
 /*
  * this function creates a throw syntax tree node like this
  * throw ""
+ * which will be used for check point
  */
 SyntaxTreeNode *createThrow(char *expStr){
 	SyntaxTreeNode *throwNode;
@@ -85,6 +90,7 @@ SyntaxTreeNode *createThrow(char *expStr){
 	TN_SET_FLAG(throwNode, TN_IN_SLICE);
 	throwNode->type = TN_THROW;
 	TN_SET_FLAG(throwNode, TN_IS_SIG_FUNCTION);
+	TN_SET_FLAG(throwNode, TN_IS_CHECK_POINT);
 
 
 	expNode1 = createExpTreeNode();
@@ -148,7 +154,7 @@ SyntaxTreeNode *createDecisionVector(InstrList *iList, int sliceFlag, char *vecN
 	expNode1 = expNode2 = expNode3 = NULL;
 
 	//go through instr list, and identify each branch and function invocation, log:
-	//	1. 1/0: wether a branch is taken of not
+	//	1. 1/0: wether a branch is taken(else) of not
 	//	2. and string represents the name of invoked function
 	for(i=0;i<InstrListLength(iList);i++){
 
@@ -166,7 +172,7 @@ SyntaxTreeNode *createDecisionVector(InstrList *iList, int sliceFlag, char *vecN
 		if(!strcmp(instr->opName, "ifeq") || !strcmp(instr->opName, "ifne")){	// a 2-way branch
 			expNode1->u.const_value_int = INSTR_HAS_FLAG(instr, INSTR_BRANCH_TAKEN)?1:0;
 			EXP_SET_FLAG(expNode1,EXP_IS_INT);
-			al_add(vecInitNode->u.expNode->u.bin_op.rval->u.array_init.initValues, expNode1);
+			al_add(vecInitNode->u.expNode->u.bin_op.rval->u.array_init.initValues, (void *)expNode1);
 			(vecInitNode->u.expNode->u.bin_op.rval->u.array_init.size)++;
 			expNode1=NULL;
 		}
@@ -180,7 +186,7 @@ SyntaxTreeNode *createDecisionVector(InstrList *iList, int sliceFlag, char *vecN
 			expNode1->u.const_value_str = (char *)malloc(strlen(funcEntry->func_name)+1);
 			assert(expNode1->u.const_value_str);
 			strcpy(expNode1->u.const_value_str, funcEntry->func_name);
-			al_add(vecInitNode->u.expNode->u.bin_op.rval->u.array_init.initValues, expNode1);
+			al_add(vecInitNode->u.expNode->u.bin_op.rval->u.array_init.initValues, (void*)expNode1);
 			(vecInitNode->u.expNode->u.bin_op.rval->u.array_init.size)++;
 			expNode1=NULL;
 		}
@@ -191,27 +197,143 @@ SyntaxTreeNode *createDecisionVector(InstrList *iList, int sliceFlag, char *vecN
 	return vecInitNode;
 }
 
-SyntaxTreeNode *createCheckPoint(char *vecName, char *indexName, ExpTreeNode *decision){
+/*
+ * decision is a expTreeNode represents current path
+ * (the execution path in which the newly created checkPoint will be inserted)
+ *
+ * crate a syntaxTreeNode for:
+ * 	if(vecName[indexName++]!=decision)
+ * 		throw expStr;
+ */
+SyntaxTreeNode *createCheckPoint(char *vecName, char *indexName, char *expStr, ExpTreeNode *decision){
 
-	SyntaxTreeNode *checkNode;
+	SyntaxTreeNode *checkNode, *syntaxNode1;
+	ExpTreeNode *expNode1 ,*expNode2, *expNode3;
 
-	return NULL;
+	assert(vecName && indexName && expStr && decision);
+
+	//if-else node
+	checkNode = createSyntaxTreeNode();
+	assert(checkNode);
+	TN_SET_FLAG(checkNode, TN_IN_SLICE);
+	checkNode->type = TN_IF_ELSE;
+	checkNode->u.if_else.if_path = al_new();
+	checkNode->u.if_else.else_path = al_new();
+	TN_SET_FLAG(checkNode, TN_IS_SIG_FUNCTION);
+	TN_SET_FLAG(checkNode, TN_IS_CHECK_POINT);
+
+	//indexName++
+	expNode1 = createExpTreeNode();
+	assert(expNode1);
+	EXP_SET_FLAG(expNode1, EXP_IN_SLICE);
+	expNode1->type = EXP_UN;
+	expNode1->u.un_op.op = OP_VINC;
+	expNode1->u.un_op.name = (char *)malloc(strlen(indexName)+1);
+	assert(expNode1->u.un_op.name);
+	strcpy(expNode1->u.un_op.name, indexName);
+
+	//vecName[indexName++]
+	expNode2 = createExpTreeNode();
+	assert(expNode2);
+	EXP_SET_FLAG(expNode2, EXP_IN_SLICE);
+	expNode2->type = EXP_ARRAY_ELM;
+
+	expNode3 = createExpTreeNode();
+	assert(expNode3);
+	EXP_SET_FLAG(expNode3, EXP_IN_SLICE);
+	expNode3->type = EXP_NAME;
+	expNode3->u.name = (char *)malloc(strlen(vecName)+1);
+	assert(expNode3->u.name);
+	strcpy(expNode3->u.name, vecName);
+
+	expNode2->u.array_elm.name = expNode3;
+	expNode2->u.array_elm.index = expNode1;
+
+	expNode1 = expNode3 = NULL;
+
+	//vecName[indexName++]!=decision
+	expNode1 = createExpTreeNode();
+	assert(expNode1);
+	EXP_SET_FLAG(expNode1, EXP_IN_SLICE);
+	expNode1->type = EXP_BIN;
+	expNode1->u.bin_op.op = OP_NE;
+	expNode1->u.bin_op.lval = expNode2;
+	assert(decision->type==EXP_CONST_VALUE);
+	EXP_SET_FLAG(decision, EXP_IN_SLICE);
+	expNode1->u.bin_op.rval = decision;
+
+	expNode2 = NULL;
+
+	//throw expStr;
+	syntaxNode1 = createThrow(expStr);
+
+	//put them together
+	checkNode->u.if_else.cond = expNode1;
+	al_add(checkNode->u.if_else.if_path, (void*)syntaxNode1);
+
+	return checkNode;
 }
 
 /*
- * insert check points in each if-else and function body
+ * insert check point in an if-else (or while-loop after transformation) and function body
  * also mark slice-flag for insert check point if corresponding if-else/function node is labeled
  */
-void insertCheckPoints(ArrayList *syntaxTrees){}
+void insertCheckPointAtBeginning(ArrayList *syntaxTrees){}
 
 
-SyntaxTreeNode *createSigFunction(InstrList *iList, ArrayList *syntaxTrees, char *vecName, char *indexName){
+SyntaxTreeNode *createSigFunction(InstrList *iList, ArrayList *syntaxTrees, ArrayList *funcObjTable, int sliceFlag){
+
+	printf("Creating signature function on %s...\n", sliceFlag?"slice":"entire trace");
+
+	SyntaxTreeNode *decisionVec, *sigFunctionNode;
+	SyntaxTreeNode *n1, *n2;
+	ExpTreeNode *expNode1;
+	Function 	*sigFuncStruct;
+	int i;
+
+	//create signature function syntaxtree node
+	sigFunctionNode = createSyntaxTreeNode();
+	assert(sigFunctionNode);
+	TN_SET_FLAG(sigFunctionNode, TN_IN_SLICE);
+	TN_SET_FLAG(sigFunctionNode, TN_IS_SIG_FUNCTION);
+	sigFunctionNode->type = TN_FUNCTION;
+	sigFunctionNode->u.func.funcBody = al_new();
+
+	sigFuncStruct = createFunctionNode();
+	assert(sigFuncStruct);
+	FUNC_SET_FLAG(sigFuncStruct, FUNC_IN_SLICE);
+	sigFuncStruct->funcName = (char*)malloc(strlen(sigFuncStr)+1);
+	assert(sigFuncStruct->funcName);
+	strcpy(sigFuncStruct->funcName, sigFuncStr);
+	sigFuncStruct->args = -1;
+
+	sigFunctionNode->u.func.funcStruct = sigFuncStruct;
+
+
 	//1. go through instr list and generate decision vector
+	decisionVec = createDecisionVector(iList, sliceFlag, vectorStr, funcObjTable);
+
 
 	//2. go through syntax tree nodes and insert check points
 
-	//3. create signature function node, insert decision vec at the beginning and
-	//      original ASTs into the try-body (functions and main routine)
+
+	//3. create try-catch and insert all nodes in try-body
+
+	n1 = createTryCatchSigFunc();
+	for(i=0;i<al_size(syntaxTrees);i++){
+		al_add(n1->u.try_catch.try_body, al_get(syntaxTrees, i));
+	}
+	n2 = createReturnBool(1);
+	al_add(sigFunctionNode->u.func.funcBody, decisionVec);
+	al_add(sigFunctionNode->u.func.funcBody, n1);
+	al_add(sigFunctionNode->u.func.funcBody, n2);
+
+
+
+	printSyntaxTreeNode(sigFunctionNode, sliceFlag);
+
+
+
 
 	return NULL;
 }

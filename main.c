@@ -19,6 +19,7 @@
 #include "function.h"
 #include "syntax.h"
 #include "df.h"
+#include "sig_function.h"
 
 
 
@@ -220,6 +221,7 @@ int main (int argc, char *argv[]) {
 			printSyntaxTreeNode(funcSyntaxTreeNode, parameter);
 		}
 
+		createSigFunction(iList, funcSyntaxTree, funcObjTable, parameter);
 
 		destroyFunctionCFGs(funcCFGs);
 		destroyNaturalLoopList(funcLoopList);

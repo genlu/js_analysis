@@ -8,6 +8,7 @@
 #ifndef SIG_FUNCTION_H_
 #define SIG_FUNCTION_H_
 
+SyntaxTreeNode *createSigFunction(InstrList *iList, ArrayList *syntaxTrees, ArrayList *funcObjTable, int sliceFlag);
 
 
 #endif /* SIG_FUNCTION_H_ */

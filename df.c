@@ -506,18 +506,31 @@ void findReverseDominators(ArrayList *blockList){
 	for(i=al_size(blockList)-1;i>=0;i--){
 		block = (BasicBlock *)al_get(blockList,i);
 		printf("processing block %d\n", block->id);
-		if(block->reverseDominate){
+		/*
+		 if(block->reverseDominate){
 			al_freeWithElements(block->reverseDominate);
 		}
 		block->reverseDominate = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		 */
+		if(!block->reverseDominate){
+			block->reverseDominate = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		}
+
 		assert(block->reverseDominate);
 		for(j=0;j<al_size(block->reverseDominators);j++){
 			//block2 reverse dominates block
 			block2 =  (BasicBlock *)al_get(block->reverseDominators,j);
+			printf("%d\n", block2->id);
+
+			if(!block2->reverseDominate){
+				block2->reverseDominate = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+			}
+
 			domEdge = createBlockEdge();
 			domEdge->tail = block2;
 			domEdge->head = block;
 			EDGE_SET_FLAG(domEdge, EDGE_IS_REV_DOMINATE);
+
 			if(!al_contains(block2->reverseDominate, domEdge)){
 				al_add(block2->reverseDominate, domEdge);
 			}else{
@@ -531,6 +544,7 @@ void findReverseDominators(ArrayList *blockList){
 	//construct rev dom tree
 	for(i=al_size(blockList)-1;i>=0;i--){
 		block = (BasicBlock *)al_get(blockList,i);
+		/*
 		if(block->reverseImmDomPreds){
 			//al_freeWithElements(block->immDomPreds);
 			al_free(block->reverseImmDomPreds);
@@ -540,8 +554,17 @@ void findReverseDominators(ArrayList *blockList){
 			al_freeWithElements(block->reverseImmDomSuccs);
 			block->reverseImmDomSuccs=NULL;
 		}
+
 		block->reverseImmDomPreds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
 		block->reverseImmDomSuccs = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		*/
+
+		if(!block->reverseImmDomPreds){
+			block->reverseImmDomPreds = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		}
+		if(!block->reverseImmDomSuccs){
+			block->reverseImmDomSuccs = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+		}
 
 		for(j=0;j<al_size(block->reverseDominators);j++){
 			//block2 reverse dominates block
@@ -561,6 +584,10 @@ void findReverseDominators(ArrayList *blockList){
 			}
 			if(!block2)
 				continue;
+
+			if(!block2->reverseImmDomSuccs){
+				block2->reverseImmDomSuccs = al_newGeneric(AL_LIST_SET, edgeBlockIdCompare, NULL, destroyBlockEdge);
+			}
 			//printf("block%d is imm-reverse dominator of block%d\n", block2->id, block->id);
 			//then block is reveres imm dominator of block
 			domEdge = createBlockEdge();

@@ -609,12 +609,15 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		}
 
 		//eval'ed code block still use CFG id instead of SyntaxTreeNode ID!!!!!!
-		if(BBL_HAS_FLAG(node->u.func.funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY)){
+		if(node->u.func.funcStruct->funcEntryBlock &&
+				BBL_HAS_FLAG(node->u.func.funcStruct->funcEntryBlock, BBL_IS_EVAL_ENTRY)){
 			sprintf(str, "block_%d:", node->u.func.funcStruct->funcEntryBlock->id);
 			printf("//eval'ed code\n%s", str);
 			printf("{\n");
 		}
 		else{
+			if(node->u.func.funcStruct->funcEntryBlock==NULL)
+				assert(TN_HAS_FLAG(node, TN_IS_SIG_FUNCTION));
 			printf("function %s ", node->u.func.funcStruct->funcName);
 			printf("(");
 			for(i=0;i<=node->u.func.funcStruct->args;i++){

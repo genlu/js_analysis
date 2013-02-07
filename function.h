@@ -30,6 +30,7 @@ typedef struct FuncObjTableEntry{
 #define	FE_CLR_FLAG(fe, flag)		(fe->flags &= ~flag)
 #define	FE_HAS_FLAG(fe, flag)		(fe->flags & flag)
 
+Function *createFunctionNode(void);
 FuncObjTableEntry *createFuncObjTableEntry(void);
 void destroyFuncObjTableEntry(void *entry);
 ArrayList *constructFuncObjTable(InstrList *iList, ArrayList *funcCFGs);
