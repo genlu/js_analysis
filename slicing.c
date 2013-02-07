@@ -579,6 +579,25 @@ ArrayList *findFuncStartInstrsInSlice(InstrList *iList){
 }
 
 
+void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t flag){
+
+	//1. create a slicingState
+
+}
+
+void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t flag){
+
+
+	//need a list for possible control dependency blocks for coming blocks
+
+	//a new list is required for each function invocation, equivalent to tje frameStack for instr
+
+	//when a CFG transition occurs, any block in the list is removed if it is not control the new block
+	// and the new block is added to the list if it is a branch instruction
+
+	//if instr is not from a new block, then check the list to see if the instr is dependent on any of the blocks
+	//label instr if it is.
+}
 
 
 
