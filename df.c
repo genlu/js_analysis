@@ -598,7 +598,8 @@ void findReverseDominators(ArrayList *blockList){
 			al_add(block2->reverseImmDomSuccs, domEdge);
 		}
 	}
-	//printImmDomList(blockList);
+
+	printRevImmDomList(blockList);
 }
 
 
@@ -647,11 +648,18 @@ void computeReverseDominanceFrontiersHelper(BasicBlock *root){
 			al_add(root->reverseDomFrontier, Y);
 		}
 	}
-	//3. FOREACH Z in all descendants(root) in dom tree DO:
+	//3. FOREACH Z in children(root) in dom tree DO:
 	//		FOREACH Y in DF[Z] DO:
 	//			IF idom(Y) != root THEN DF[root] = DF[root] union {Y} ENDIF
 	//	 	ENDFOR
 	//	 ENDFOR
+
+	/*
+	 * ONLY children of root!!!!!!!
+	 * not all the decendents of root!!!!!
+	 * todo: clean up the code, remove stack operations, etc.	02/08/2013
+	 */
+
 	OpStack *stack;		//use a stack for DFS on reversed dom tree
 	stack = initOpStack(printBasicBlockId);
 	assert(stack);
@@ -662,15 +670,18 @@ void computeReverseDominanceFrontiersHelper(BasicBlock *root){
 		pushOpStack(stack, (void *)(edge->head));
 	}
 	assert(al_size(root->reverseImmDomSuccs)==countOpStack(stack));
-	//then proccess each node in stack ad push its children in it
+	//then proccess each node in stack
 	while(!isOpStackEmpty(stack)){
 		Z = (BasicBlock *)popOpStack(stack);
+		/*
+		 * NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
 		//push Z's children
 		for(i=0;i<al_size(Z->reverseImmDomSuccs);i++){
 			edge = (BlockEdge *)al_get(Z->reverseImmDomSuccs, i);
 			assert(EDGE_HAS_FLAG(edge, EDGE_IS_REV_IMM_DOM));
 			pushOpStack(stack, (void *)(edge->head));
 		}
+		*/
 		//processing Z
 		for(i=0;i<al_size(Z->reverseDomFrontier);i++){
 			Y = (BasicBlock *)al_get(Z->reverseDomFrontier, i);

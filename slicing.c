@@ -579,24 +579,223 @@ ArrayList *findFuncStartInstrsInSlice(InstrList *iList){
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t flag){
 
-	//1. create a slicingState
+	assert(iList && blocksList);
+	Instruction *instr;
+	WriteSet *memDef, *memUsed, *memTemp;
+	Property *propUsed, *propDef, *propTemp;
+	InstrList *currentFrame;
+	SlicingState *state;
+	int add_flag;
+
+
+	/*
+	 * create a slicingState for backward slice
+	 */
+    SlicingState *state = initSlicingState(iList,i);
+
+	currentFrame = (InstrList *)peekOpStack(state->stack);
+	assert(currentFrame);
+	int *i = &(state->currect_instr);
+	instr=getInstruction(iList,(*i));
+	//Starting instruction should be included in UD chain
+	INSTR_SET_FLAG(instr, flag);
+
+
+	instr=getInstruction(iList,(*i));
+
+	// put instr into currentFrame
+	InstrListAdd(currentFrame, instr);
+	//printf("Mark UD for instr#%d\n", (*i));
+
+	//start from the instruction state->currect_instr-1
+	while((*i)-- > 0){
+		add_flag=0;
+
+		//get previous instruction
+		instr=getInstruction(iList,(*i));
+
+		//printf("processing instr %d\n", instr->order);
+
+/*		if(isInvokeInstruction(iList, instr)){
+			printf("invoke: %d\t", instr->order);
+			if(isNativeInvokeInstruction(iList, instr))
+				printf("***");
+			printf("\n");
+		}else if(isRetInstruction(iList, instr)){
+			printf("ret: %d\n", instr->order);
+		}*/
+
+		// get use/def info about instruction i
+		memUsed = getMemUse(iList, (*i));
+		memDef = getMemDef(iList, (*i));
+		propUsed = getPropUse(iList, (*i));
+		propDef = getPropDef(iList, (*i));
+
+		// if i is a return instr
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_RET)){
+			InstrList *newFrame = InstrListCreate();
+			pushOpStack(state->stack, (void *)newFrame);
+			//INSTR_SET_FLAG(instr, INSTR_IS_RET);
+		}
+
+		// if s is a invocation instr
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE) || INSTR_HAS_FLAG(instr, INSTR_IS_NATIVE_INVOKE)){
+			if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
+				UDPRINTF(("script invoke #%d\n", instr->order));
+				state->lastFrame = (InstrList *)popOpStack(state->stack);
+				assert(state->lastFrame);
+			}
+		}else{
+			if(state->lastFrame!=NULL){
+				InstrListDestroy(state->lastFrame,0);
+				state->lastFrame = NULL;
+			}
+		}
+
+		currentFrame = peekOpStack(state->stack);
+		assert(currentFrame);
+
+
+#if INCLUDE_CTRL_DEP
+		// calculate control dependency of i
+		//1. inter-procedural control dependency (ignore 'eval')
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
+			assert(state->lastFrame);
+			if(InstrListLength(state->lastFrame)>0){
+				if(instr->opCode!=JSOP_EVAL&&!INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE)){
+					UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
+					int in;
+					for(in=0;in<InstrListLength(state->lastFrame);in++){
+						UDPRINTF(("#%d ", getInstruction(state->lastFrame,in)->order));
+					}
+					UDPRINTF(("\n"));
+					add_flag++;
+					//put instr into currentFrame
+					InstrListAdd(currentFrame, instr);
+				}else
+					INSTR_SET_FLAG(instr,INSTR_EVAL_AFFECT_SLICE);
+			}
+		}
+		//2. intra-procedural control dependency
+		if(INSTR_HAS_FLAG(instr,INSTR_IS_1_BRANCH)||
+				INSTR_HAS_FLAG(instr,INSTR_IS_2_BRANCH)||
+				INSTR_HAS_FLAG(instr,INSTR_IS_N_BRANCH)){
+			//printf("instr:%lx\tnextBlock:%lx\n", instr->addr, instr->nextBlock );
+			int nextBlock = instr->nextBlock->id;
+			//printf("nextBlock: %lx\n");
+			assert(nextBlock>=0);
+			int jj;
+			for(jj=0;jj<InstrListLength(currentFrame);jj++){
+				Instruction *tempInstr = getInstruction(currentFrame, jj);
+				if(tempInstr->inBlock->id == nextBlock){
+					if(!add_flag)
+						UDPRINTF(("adding %d as a control dep(jump)\n", instr->order));
+					add_flag++;
+					InstrListRemove(currentFrame, tempInstr);
+					jj--;
+				}
+			}
+		}
+
+#endif	//end #if INCLUDE_CTRL_DEP
+
+
+
+#if INCLUDE_DATA_DEP
+		//calculate data dependency of i
+		if(WriteSetsOverlap(state->memLive, memDef)){
+			add_flag++;
+			memTemp = SubtractWriteSets(state->memLive, memDef);
+            WriteSetDestroy(state->memLive);
+            state->memLive = NULL;
+            state->memLive = memTemp;
+            UDPRINTF(("adding %d as a data dep\n", instr->order));
+		}
+		if(propDef){
+			//instr i define some property in liveSet, remove it from liveSet
+			if(al_contains(state->propsLive->propSet, propDef)){
+				add_flag++;
+				propTemp = al_remove(state->propsLive->propSet, propDef);
+				propFree(propTemp);
+				UDPRINTF(("adding %d as a data dep\n", instr->order));
+			}
+		}
+#endif   //end #if INCLUDE_DATA_DEP
+
+		if(add_flag){
+			//put this instr in UD chain
+			INSTR_SET_FLAG(instr, flag);
+			// put instr into currentFrame
+			InstrListAdd(currentFrame, instr);
+
+			state->memLive = MergeWriteSets(state->memLive, memUsed);
+			if(propUsed){
+				if(!al_contains(state->propsLive->propSet, propUsed)){
+					al_add(state->propsLive->propSet, propUsed);
+				}else
+					propFree(propUsed);
+			}
+		}
+		// free propUsed if it's not add the the liveSet
+		else
+			propFree(propUsed);
+		//end of data dependency calculation
+
+		propFree(propDef);
+		WriteSetDestroy(memUsed);
+		WriteSetDestroy(memDef);
+	}
 
 }
+
+
+
+
 
 void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t flag){
 
 
 	//need a list for possible control dependency blocks for coming blocks
 
-	//a new list is required for each function invocation, equivalent to tje frameStack for instr
+	//a new list is required for each function invocation, equivalent to the frameStack for instr
 
-	//when a CFG transition occurs, any block in the list is removed if it is not control the new block
-	// and the new block is added to the list if it is a branch instruction
+	//when a CFG transition occurs, any block in the list is removed if it is control dependent on the new block
 
-	//if instr is not from a new block, then check the list to see if the instr is dependent on any of the blocks
+	// and the new block is added to the list if the block is a branch block  && the branch instr is in slice
+	//    which means the block is added to list only the we encounter its last instr
+
+	//control dep:
+	//for every instr, check the list to see if the instr is dependent on any of the blocks
 	//label instr if it is.
+
+	//data dep:
+	//same UD computation as before
 }
 
 
