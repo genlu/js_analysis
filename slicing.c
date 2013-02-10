@@ -615,15 +615,15 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 
 
 	/*
-	 * create a slicingState for backward slice
+	 * create a slicingState for backward slicing
 	 */
-    SlicingState *state = initSlicingState(iList,i);
+    state = initSlicingState(iList,order);
 
 	currentFrame = (InstrList *)peekOpStack(state->stack);
 	assert(currentFrame);
 	int *i = &(state->currect_instr);
 	instr=getInstruction(iList,(*i));
-	//Starting instruction should be included in UD chain
+	//Starting instruction should be included in slice
 	INSTR_SET_FLAG(instr, flag);
 
 
@@ -631,7 +631,7 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 
 	// put instr into currentFrame
 	InstrListAdd(currentFrame, instr);
-	//printf("Mark UD for instr#%d\n", (*i));
+	//printf("Mark backward slice for instr#%d\n", (*i));
 
 	//start from the instruction state->currect_instr-1
 	while((*i)-- > 0){
@@ -661,7 +661,6 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_RET)){
 			InstrList *newFrame = InstrListCreate();
 			pushOpStack(state->stack, (void *)newFrame);
-			//INSTR_SET_FLAG(instr, INSTR_IS_RET);
 		}
 
 		// if s is a invocation instr
@@ -681,14 +680,12 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 		currentFrame = peekOpStack(state->stack);
 		assert(currentFrame);
 
-
-#if INCLUDE_CTRL_DEP
 		// calculate control dependency of i
-		//1. inter-procedural control dependency (ignore 'eval')
+		//1. inter-procedural control dependency
 		if(INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)){
 			assert(state->lastFrame);
 			if(InstrListLength(state->lastFrame)>0){
-				if(instr->opCode!=JSOP_EVAL&&!INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE)){
+//				if(instr->opCode!=JSOP_EVAL&&!INSTR_HAS_FLAG(instr, INSTR_IS_DOC_WRITE)){
 					UDPRINTF(("adding %d as a control dep(invoke)\n", instr->order));
 					int in;
 					for(in=0;in<InstrListLength(state->lastFrame);in++){
@@ -698,24 +695,21 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 					add_flag++;
 					//put instr into currentFrame
 					InstrListAdd(currentFrame, instr);
-				}else
-					INSTR_SET_FLAG(instr,INSTR_EVAL_AFFECT_SLICE);
+//				}else
+//					INSTR_SET_FLAG(instr,INSTR_EVAL_AFFECT_SLICE);
 			}
 		}
 		//2. intra-procedural control dependency
-		if(INSTR_HAS_FLAG(instr,INSTR_IS_1_BRANCH)||
-				INSTR_HAS_FLAG(instr,INSTR_IS_2_BRANCH)||
+		if(	INSTR_HAS_FLAG(instr,INSTR_IS_2_BRANCH)||
 				INSTR_HAS_FLAG(instr,INSTR_IS_N_BRANCH)){
 			//printf("instr:%lx\tnextBlock:%lx\n", instr->addr, instr->nextBlock );
-			int nextBlock = instr->nextBlock->id;
-			//printf("nextBlock: %lx\n");
-			assert(nextBlock>=0);
 			int jj;
 			for(jj=0;jj<InstrListLength(currentFrame);jj++){
 				Instruction *tempInstr = getInstruction(currentFrame, jj);
-				if(tempInstr->inBlock->id == nextBlock){
+				assert(tempInstr->inBlock->reverseDomFrontier);
+				if(findBasicBlockFromListByID(tempInstr->inBlock->reverseDomFrontier, instr->inBlock->id)){
 					if(!add_flag)
-						UDPRINTF(("adding %d as a control dep(jump)\n", instr->order));
+						UDPRINTF(("adding %d as a control dep\n", instr->order));
 					add_flag++;
 					InstrListRemove(currentFrame, tempInstr);
 					jj--;
@@ -723,11 +717,6 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 			}
 		}
 
-#endif	//end #if INCLUDE_CTRL_DEP
-
-
-
-#if INCLUDE_DATA_DEP
 		//calculate data dependency of i
 		if(WriteSetsOverlap(state->memLive, memDef)){
 			add_flag++;
@@ -746,10 +735,9 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 				UDPRINTF(("adding %d as a data dep\n", instr->order));
 			}
 		}
-#endif   //end #if INCLUDE_DATA_DEP
 
 		if(add_flag){
-			//put this instr in UD chain
+			//put this instr in slice
 			INSTR_SET_FLAG(instr, flag);
 			// put instr into currentFrame
 			InstrListAdd(currentFrame, instr);
@@ -771,7 +759,6 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 		WriteSetDestroy(memUsed);
 		WriteSetDestroy(memDef);
 	}
-
 }
 
 

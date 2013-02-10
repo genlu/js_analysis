@@ -38,7 +38,7 @@ typedef enum {
 #define	INSTR_IS_1_BRANCH			(1<<2)
 #define	INSTR_IS_2_BRANCH			(1<<3)
 #define	INSTR_IS_N_BRANCH			(1<<4)
-#define	INSTR_IS_SCRIPT_INVOKE		(1<<5)
+#define	INSTR_IS_SCRIPT_INVOKE		(1<<5)				//eval and doc.write as well
 #define	INSTR_IS_NATIVE_INVOKE		(1<<6)
 #define INSTR_IS_RET				(1<<7)				// instruction is a return(ret/stop) from the invoked frame
 #define INSTR_HAS_RET_VALUE			(1<<8)				//this is a 'ret' instr
