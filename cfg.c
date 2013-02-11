@@ -387,7 +387,7 @@ void destroyBasicBlock(void *block) {
 		bbl->reverseImmDomPreds=NULL;
 	}
 	if(bbl->reverseImmDomSuccs){
-		al_freeWithElements(bbl->reverseImmDomSuccs);
+		al_free(bbl->reverseImmDomSuccs);
 		bbl->reverseImmDomSuccs=NULL;
 	}
 	if(bbl->reverseDomFrontier){

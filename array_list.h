@@ -2,6 +2,7 @@
 #define ARRAY_LIST_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct Iterator {
     void *it_dataStructure;
@@ -21,10 +22,18 @@ typedef struct ArrayList {
     int al_capacity;
     ATYPE al_type;
     int al_lock;
+    uint32_t flags;
     int (*al_compare) (void *, void *);
     void (*al_print) (void *);
     void (*al_free) (void *);
 } ArrayList;
+
+#define AL_FLAG_TMP1				(1<<31)
+
+#define	AL_SET_FLAG(al, flag)		(al->flags |= flag)
+#define	AL_CLR_FLAG(al, flag)		(al->flags &= ~flag)
+#define	AL_HAS_FLAG(al, flag)		(al->flags & flag)
+
 
 ArrayList *al_new(void);
 ArrayList *al_newT(ATYPE type);

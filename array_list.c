@@ -151,7 +151,7 @@ ArrayList *al_newGeneric(ATYPE type, int (*compareFunc) (void *, void *),
     list->al_compare = compareFunc ? compareFunc : refCompare;
     list->al_print = printFunc ? printFunc : refPrint;
     list->al_free = freeFunc ? freeFunc : NULL;
-
+    list->flags = 0;
     return list;
 }
 

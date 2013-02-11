@@ -15,6 +15,7 @@ typedef struct SlicingState{
 	int currect_instr;
 	OpStack *stack;
 	InstrList *lastFrame;
+	//ArrayList *lastFrameForward;
 	WriteSet *memLive;
 	SlicingPropSet *propsLive;
 }SlicingState;
@@ -25,7 +26,7 @@ void propPrint(void *item);
 int propCompare(void *o1, void *o2);
 SlicingPropSet *createPropSet(void);
 void destroyPropSet(SlicingPropSet *set);
-SlicingState *initSlicingState(InstrList *iList, int order);
+SlicingState *initSlicingState(InstrList *iList, int order, int direction);
 void destroySlicingState(SlicingState *state);
 void printSlicingState(SlicingState *state);
 void markUDchain(InstrList *iList, SlicingState *state, uint32_t flag);
@@ -36,5 +37,8 @@ ArrayList *findFuncStartInstrsInSlice(InstrList *iList);
 
 void testUD(InstrList *iList, SlicingState *state);
 void forwardUDchain(InstrList *iList, int order);
+
+void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t flag);
+void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t flag);
 
 #endif
