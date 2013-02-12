@@ -158,17 +158,23 @@ SlicingState *initSlicingState(InstrList *iList, int order, int direction){
 	return state;
 }
 
-void destroySlicingState(SlicingState *state){
+void destroySlicingState(SlicingState *state, int direction){
 	if(!state)
 		return;
 	destroyPropSet(state->propsLive);
 	if(!isOpStackEmpty(state->stack)){
 		InstrList *iList;
+		ArrayList *list;
 		int i=0;
 		while(!isOpStackEmpty(state->stack)){
 			i++;
-			iList = (InstrList *)popOpStack(state->stack);
-			InstrListDestroy(iList, 0);
+			if(direction==1){
+				list = (ArrayList *)popOpStack(state->stack);
+				al_free(list);
+			}else{
+				iList = (InstrList *)popOpStack(state->stack);
+				InstrListDestroy(iList, 0);
+			}
 		}
 		if(i>1)
 			fprintf(stderr, "WARNING: frame stack has more than one frame left before being destroyed\n");
@@ -529,7 +535,7 @@ void deobfSlicing(InstrList *iList){
 	    SlicingState *state = initSlicingState(iList,i,0);
 	    markUDchain(iList, state, INSTR_ON_EVAL);	//it doestn't matter that markUDchian does't trace on eval()
 	    											//since we are actually tracing back on each eval() in this loop
-	    destroySlicingState(state);
+	    destroySlicingState(state, 0);
 	}
 #if DEOBFSLICING_PRINT
 	printf("\n*********************************************************************************\n");
@@ -551,7 +557,7 @@ void deobfSlicing(InstrList *iList){
 #endif
 	    SlicingState *state = initSlicingState(iList,i,0);
 	    markUDchain(iList, state, INSTR_IN_SLICE);
-	    destroySlicingState(state);
+	    destroySlicingState(state, 0);
 	}
 #if DEOBFSLICING_PRINT
 	printf("\n*********************************************************************************\n");
@@ -789,6 +795,7 @@ void backwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_
 		WriteSetDestroy(memUsed);
 		WriteSetDestroy(memDef);
 	}
+	destroySlicingState(state, 0);
 }
 
 
@@ -838,7 +845,7 @@ void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t
 			//get next instruction
 			instr=getInstruction(iList,(*i));
 
-			//printf("processing instr %d\n", instr->order);
+			printf("processing instr %d\n", instr->order);
 
 			// get use/def info about instruction i
 			memUsed = getMemUse(iList, (*i));
@@ -875,19 +882,24 @@ void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t
 			//if lastInstr is a branch instr, then remove blocks from currentFrame that depends on lastInstr->inBlock
 			// and add lastInstr->inBlock into currentFrame if lastInstr is in slice
 			if(INSTR_HAS_FLAG(lastInstr,INSTR_IS_2_BRANCH) || INSTR_HAS_FLAG(lastInstr,INSTR_IS_N_BRANCH)){
+				printf("last instr a branch, handling currentFrame\n");
+				printf("lastInstr in block #%d\n", lastInstr->inBlock->id);
 				for(j=0;j<al_size(currentFrame);j++){
 					block1 = (BasicBlock *)al_get(currentFrame, j);
+					printf("+++ %d +++\n", block1->id);
 					if(findBasicBlockFromListByID(block1->reverseDomFrontier, lastInstr->inBlock->id)!=NULL){
 						assert(al_remove(currentFrame, (void *)block1));
+						printf("block#%d removed to currentFrame\n", block1->id);
 						j--;
 					}
 				}
 				if(INSTR_HAS_FLAG(lastInstr,flag)){
 					al_add(currentFrame, (void *)lastInstr->inBlock);
+					printf("block#%d added to currentFrame\n", lastInstr->inBlock->id);
 				}
 			}
 
-
+			//printf("calculate control dependency\n");
 			// calculate control dependency of instr
 
 			//1. inter-procedural control dependency
@@ -908,16 +920,19 @@ void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t
 				}
 			}//end if-else
 
+			//printf("calculate data dependency\n");
 			//calculate data dependency of instr
 			if(WriteSetsOverlap(state->memLive, memUsed)){
 				add_flag++;
 				UDPRINTF(("adding %d as a data dep\n", instr->order));
 			}
 			//remove memory defined by instr from liveSet (it will be added back if instr is in slice)
-			memTemp = SubtractWriteSets(state->memLive, memDef);
-			WriteSetDestroy(state->memLive);
-			state->memLive = NULL;
-			state->memLive = memTemp;
+			if(WriteSetsOverlap(state->memLive, memDef)){
+				memTemp = SubtractWriteSets(state->memLive, memDef);
+				WriteSetDestroy(state->memLive);
+				state->memLive = NULL;
+				state->memLive = memTemp;
+			}
 
 			if(propUsed){
 				//instr i define some property in liveSet, remove it from liveSet
@@ -927,8 +942,12 @@ void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t
 				}
 			}
 			//remove property defined by instr from live set (will be added back if instr is inslice)
-			propTemp = al_remove(state->propsLive->propSet, propDef);
-			propFree(propTemp);
+			if(propDef){
+				if(al_contains(state->propsLive->propSet, propDef)){
+					propTemp = al_remove(state->propsLive->propSet, propDef);
+					propFree(propTemp);
+				}
+			}
 
 			if(add_flag){
 				//put this instr in slice
@@ -951,12 +970,50 @@ void forwardSlicing(InstrList *iList, int order, ArrayList *blocksList, uint32_t
 			WriteSetDestroy(memUsed);
 			WriteSetDestroy(memDef);
 		}//end while
+		destroySlicingState(state, 1);
 }//end forwardSlicing()
 
 
 
 
 
+void envBranchSlicing(InstrList *iList, ArrayList *blocksList, uint32_t flag){
+	Instruction *instr;
+	int i;
+
+	for(i=0;i<InstrListLength(iList);i++){
+		instr = getInstruction(iList, i);
+		INSTR_CLR_FLAG(instr, INSTR_FLAG_TMP0);
+	}
+
+	//1. indentify ENV value source e
+	//2. forward slicing to find branch conditions depends on e
+	for(i=0;i<InstrListLength(iList);i++){
+		instr = getInstruction(iList, i);
+		if(INSTR_HAS_FLAG(instr, INSTR_IS_ENV)){
+			forwardSlicing(iList, i, blocksList, INSTR_FLAG_TMP0);
+		}
+	}
+
+	//3. for each conditional branch marked in (2), backward slicing to identify relevant instructions
+	for(i=0;i<InstrListLength(iList);i++){
+		instr = getInstruction(iList, i);
+		if(INSTR_HAS_FLAG(instr, INSTR_FLAG_TMP0) &&
+				(INSTR_HAS_FLAG(instr, INSTR_IS_2_BRANCH) ||
+						INSTR_HAS_FLAG(instr, INSTR_IS_N_BRANCH) ||
+						INSTR_HAS_FLAG(instr, INSTR_IS_SCRIPT_INVOKE)
+				)
+		){
+			backwardSlicing(iList, i, blocksList, INSTR_IN_SLICE);
+		}
+	}
+
+	for(i=0;i<InstrListLength(iList);i++){
+		instr = getInstruction(iList, i);
+		INSTR_CLR_FLAG(instr, INSTR_FLAG_TMP0);
+	}
+
+}
 
 
 

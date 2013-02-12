@@ -63,7 +63,8 @@ typedef enum {
 
 #define INSTR_IS_ENV				(1<<19)				//instr is environment dependent (e.g. userAgent, Date(), etc)
 
-#define INSTR_FLAG_TMP0				(1<<31)
+#define INSTR_FLAG_TMP0				(1<<30)
+#define INSTR_FLAG_TMP1				(1<<31)
 
 
 #define	INSTR_SET_FLAG(instr, flag)		(instr->flags |= flag)

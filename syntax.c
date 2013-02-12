@@ -12,6 +12,7 @@
 #include "opcode.h"
 #include "cfg.h"
 #include "syntax.h"
+#include "sig_function.h"
 #include "function.h"
 
 static int syntaxBlockIDctl=0;
@@ -628,6 +629,10 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 			printf(") {\n");
 		}
 		printf("//has %u local variables\n", node->u.func.funcStruct->loc_vars);
+		//print checkpoint
+		if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
+			printf("if(%s[%s++]!=\"%s\")\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.func.funcStruct->funcName, exceptionStr);
+
 		for(i=0;i<al_size(node->u.func.funcBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.func.funcBody, i);
 			assert(sTreeNode);
@@ -637,12 +642,16 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		printf("}\n");
 		break;
 
+		//todo: add check points
 	case TN_WHILE:
 		if(slice_flag && !TN_HAS_FLAG(node, TN_IN_SLICE))
 			break;
 		if(al_size(node->predsList)>0)
 			printf("block_%d:\n", node->id);
 		printf("while( "); printExpTreeNode(node->u.loop.cond, slice_flag);printf(" ){\n");
+		//print inbody checkpoint
+		if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
+			printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.loop._bodyBranchType, exceptionStr);
 		for(i=0;i<al_size(node->u.loop.loopBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.loop.loopBody, i);
 			assert(sTreeNode);
@@ -650,6 +659,9 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 			printf("\n");
 		}
 		printf("}\t//end loop\n");
+		//print out-body check point
+		if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
+			printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, 1-node->u.loop._bodyBranchType, exceptionStr);
 		break;
 
 	case TN_BLOCK:
@@ -715,6 +727,13 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		printExpTreeNode(node->u.if_else.cond, slice_flag);
 
 		SYN_PRINTF((" ) {\n"));
+
+		if(!slice_flag || (slice_flag && TN_HAS_FLAG(node, TN_IN_SLICE))){
+			//print checkpoint
+			if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
+				printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, 1-node->u.if_else._ifeq, exceptionStr);
+		}
+
 		for(i=0;i<al_size(node->u.if_else.if_path);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.if_path, i);
 			printSyntaxTreeNode(sTreeNode, slice_flag);
@@ -724,6 +743,11 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		//if(!SyntaxNodeListIsEmpty(node->u.if_else.else_path)){
 		if(1){
 			SYN_PRINTF((" else {\n"));
+			if(!slice_flag || (slice_flag && TN_HAS_FLAG(node, TN_IN_SLICE))){
+				//print checkpoint
+				if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
+					printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.if_else._ifeq, exceptionStr);
+			}
 			for(i=0;i<al_size(node->u.if_else.else_path);i++){
 				sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.else_path, i);
 				printSyntaxTreeNode(sTreeNode, slice_flag);
@@ -1832,6 +1856,7 @@ SyntaxTreeNode *buildSyntaxTreeForBlock(BasicBlock *block, uint32_t flag, ArrayL
 			sTreeNode1->type = TN_IF_ELSE;
 
 			expTreeNode1 = (ExpTreeNode *)stackNode1->node;
+			sTreeNode1->u.if_else._ifeq = instr->opCode==JSOP_IFEQ? 1:0;
 			sTreeNode1->u.if_else.cond = expTreeNode1;
 
 			sTreeNode1->u.if_else.if_path = al_new();
@@ -2195,7 +2220,7 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList, int slic
 	loop = findSmallestUnprocessedLoop(loopList, LOOP_FLAG_TMP0);
 
 	while(loop){
-		printf("\nllllllllllooooooooooooooooooooooooooooooooooooppppppppppppppppppp\n");
+		//printf("\nllllllllllooooooooooooooooooooooooooooooooooooppppppppppppppppppp\n");
 		loopNode = createSyntaxTreeNode();
 		loopNode->type = TN_WHILE;
 		loopNode->u.loop.loopStruct = loop;
@@ -2205,6 +2230,7 @@ void createLoopsInSynaxTree(ArrayList *syntaxTree, ArrayList *loopList, int slic
 		expTreeNode1->u.const_value_bool = true;
 		EXP_SET_FLAG(expTreeNode1, EXP_IS_BOOL);
 		loopNode->u.loop.cond = expTreeNode1;
+		loopNode->u.loop._bodyBranchType = -1;
 		loopNode->u.loop.loopBody = al_newGeneric(AL_LIST_SET, SyntaxTreeNodeCompareByBlockID, NULL, NULL);
 		loopNode->u.loop.loopBody2 = al_newGeneric(AL_LIST_SET, SyntaxTreeNodeCompareByBlockID, NULL, NULL);
 		//printNaturalLoop(loop);
@@ -3393,6 +3419,7 @@ bool trans_while_helper_infWhile(ArrayList *syntaxTree, SyntaxTreeNode *node){
 	case TN_WHILE:
 		//not infinite loop
 		if(!expIsTrue(node->u.loop.cond)){
+			assert(node->u.loop._bodyBranchType!=-1);
 			//printf("+++ loop #%d node not infinite\n", node->id);
 			for(i=0;i<al_size(node->u.loop.loopBody);i++){
 				tempNode1 = al_get(node->u.loop.loopBody, i);
@@ -3419,6 +3446,14 @@ bool trans_while_helper_infWhile(ArrayList *syntaxTree, SyntaxTreeNode *node){
 					node->u.loop.cond->type=EXP_UN;
 					node->u.loop.cond->u.un_op.op=OP_NOT;
 					node->u.loop.cond->u.un_op.lval=tempNode1->u.if_else.cond;
+					//if-branch break out the loop, so else branch is in loop-body
+					//therefore bodyBranchType = else_path's check#
+					if(tempNode1->u.if_else._ifeq==0)
+						node->u.loop._bodyBranchType = 0;
+					else if(tempNode1->u.if_else._ifeq==1)
+						node->u.loop._bodyBranchType = 1;
+					else
+						assert(0);
 					//move goto after loop
 					moveToAfter(syntaxTree, tempNode2, node);
 					//move all the statements in else branch before if-else node
@@ -3438,6 +3473,14 @@ bool trans_while_helper_infWhile(ArrayList *syntaxTree, SyntaxTreeNode *node){
 					//printf("+++ combine if and loop#%d\n", node->id);
 					//set loop condition
 					node->u.loop.cond = tempNode1->u.if_else.cond;
+					//else-branch break out the loop, so if branch is in loop-body
+					//therefore bodyBranchType = if_path's check#
+					if(tempNode1->u.if_else._ifeq==0)
+						node->u.loop._bodyBranchType = 1;
+					else if(tempNode1->u.if_else._ifeq==1)
+						node->u.loop._bodyBranchType = 0;
+					else
+						assert(0);
 					//move goto after loop
 					moveToAfter(syntaxTree, tempNode3, node);
 					//move all the statements in if branch before if-else node

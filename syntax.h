@@ -214,12 +214,17 @@ struct SyntaxTreeNode{
 			ArrayList 	*loopBody;
 			ArrayList 	*loopBody2;		//this list is merely used for easier check of loop membership
 
+			int _bodyBranchType;		// -1: inf loop(no branch) | 0: body is branch not taken | 1: body is branch taken
+			//SyntaxTreeNode  *checkPointInLoop;
+			//SyntaxTreeNode  *checkPointAfterLoop;
+
 		}loop;
 
 		struct{
 			Function 	*funcStruct;
 			ArrayList 	*funcBody;		// a list of SyntaxTreeNode
 			SyntaxTreeNode	*synFuncEntryNode;	//pointer to the func entry syntax tree node
+			//SyntaxTreeNode  *checkPoint;
 		} func;
 
 		ExpTreeNode *expNode;
@@ -230,11 +235,14 @@ struct SyntaxTreeNode{
 		} go_to;
 
 		struct{
+			int _ifeq;
 			ExpTreeNode *cond;
 			// ifeq: if-path->adj_path  else-path->branch_path
 			// ifne: if-path->branch_path  else-path->adj_path
 			ArrayList 	*if_path;				//both are lists of SyntaxTreeNodes
 			ArrayList 	*else_path;
+			//SyntaxTreeNode  *checkPointIfPath;
+			//SyntaxTreeNode  *checkPointElsePath;
 		} if_else;
 
 		//current implementation is incomplete and only for signature function generation
@@ -257,7 +265,7 @@ struct SyntaxTreeNode{
 #define	TN_AFTER_RELINK_GOTO			(1<<4)	//this flag indicates that syntax node id should be uesd in printed label
 #define TN_IS_LOOP_HEADER				(1<<5)
 #define TN_DONE_MOVE					(1<<6)
-
+#define TN_HAS_CHECKPOINT				(1<<7)
 
 #define TN_IN_SLICE						(1<<16)
 #define TN_IS_CHECK_POINT				(1<<17)	//all if(decisionVec[index++]!=THIS_PATH) throw "wrong path"

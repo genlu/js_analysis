@@ -33,7 +33,10 @@ void PrintInfo(int func){
 		f = "DECOMPILATION";
 		break;
 	case 2:
-		f = "SLICE";
+		f = "DEOBF";
+		break;
+	case 3:
+		f = "SIG-FUNCTION";
 		break;
 	default:
 		return;
@@ -81,14 +84,20 @@ int main (int argc, char *argv[]) {
 	int parameter;
 
 	if(argc != 3) {
-		printf("usage: js_analysis <js_trace file> <flag>\n\tflag:\n\t 0: decompile entire trace\n\t 1: recover simplified code\n");
+		printf("usage: js_analysis <js_trace file> <flag>\n\tflag:\n"
+				"\t 0: decompile entire trace\n"
+				"\t 1: recover simplified code\n"
+				"\t 2: generate sig function code\n");
 		return(-1);
 	}
 
 	parameter = atoi(argv[2]);
-	if(parameter!=0 && parameter!=1){
+	if(parameter!=0 && parameter!=1 && parameter!=2){
 		printf("%d\n", parameter);
-		printf("usage: js_analysis <js_trace file> <flag>\n\tflag:\n\t 0: decompile entire trace\n\t 1: recover simplified code\n");
+		printf("usage: js_analysis <js_trace file> <flag>\n\tflag:\n"
+				"\t 0: decompile entire trace\n"
+				"\t 1: recover simplified code\n"
+				"\t 2: generate sig function code\n");
 		return(-1);
 	}
 
@@ -221,8 +230,6 @@ int main (int argc, char *argv[]) {
 			printSyntaxTreeNode(funcSyntaxTreeNode, parameter);
 		}
 
-		createSigFunction(iList, funcSyntaxTree, funcObjTable, parameter);
-
 		destroyFunctionCFGs(funcCFGs);
 		destroyNaturalLoopList(funcLoopList);
 		destroyBasicBlockList(funcBlockList);
@@ -301,16 +308,146 @@ int main (int argc, char *argv[]) {
 		//destroyBasicBlockList(blockList);
 		//#endif
 	}
-	  /* get current time(after seq finished) */
-	  gettimeofday(&tv, &tz);
-	  tm=localtime(&tv.tv_sec);
-	  t2s=tv.tv_sec;
-	  t2m=tv.tv_usec;
 
-	  double ttt=(t2s-t1s)*1000000+(t2m-t1m);
-	  printf("ilist:%d\t ncalls: %d\t time:%fms\n", iList->numInstrs, ncalls, ttt);
-	  printf("avg/line: %f\n", ttt/iList->numInstrs);
-	  printf("avg/ncall: %f\n", ttt/ncalls);
+	else if(parameter==2){		//signature function generation
+
+		PrintInfo(3);
+		parameter = 1;
+
+		/*
+		 * create CFGs for functions
+		 */
+		ArrayList *funcBlockList;
+		ArrayList *funcLoopList;
+		ArrayList *funcCFGs;
+		ArrayList *funcSyntaxTree;
+		SyntaxTreeNode *funcSyntaxTreeNode;
+		ArrayList *funcObjTable;
+
+		printf("processEvaledInstr...\n");
+		processEvaledInstr(iList);
+		printf("%d\n",iList->numInstrs);
+		//printInstrList(iList);
+
+		printf("building CFG...\n");
+		funcBlockList = buildDynamicCFG(iList);
+
+
+		//printBasicBlockList(funcBlockList);
+		//printInstrList(iList);
+		printf("building function CFGs...\n");
+		funcCFGs = buildFunctionCFGs(iList, funcBlockList, &funcObjTable);
+		printBasicBlockList(funcBlockList);
+
+		printf("adding augmented exit blocks\n");
+		ArrayList *augExits = addAugmentedExitBlocks(funcBlockList);
+
+		//printBasicBlockList(funcBlockList);
+		//printInstrList(iList);
+
+		/*
+		 * find dominators for each node (basicBlock)
+		 */
+		printf("finding dominators\n");
+		findDominators(funcBlockList);
+
+		printf("finding reverse dominators\n");
+		findReverseDominators(funcBlockList);
+
+		printf("computing reverse dominance frontiers...\n");
+		computeReverseDominanceFrontiers(funcBlockList);
+		printRevDominanceFrontiers(funcBlockList);
+
+		printf("removing augmented exit blocks\n");
+		removeAugmentedExitBlocks(funcBlockList, augExits);
+
+		//todo: environment-dependent branches slicing here
+		printf("\nforward slicing\n");
+		//forwardSlicing(iList, 622, funcBlockList, INSTR_IN_SLICE);
+		//backwardSlicing(iList, 645, funcBlockList, INSTR_IN_SLICE);
+		envBranchSlicing(iList, funcBlockList, INSTR_IN_SLICE);
+
+		/*
+		 * build a DFS-Tree on CFG
+		 * (tree edges are marked)
+		 */
+		buildDFSTree(funcBlockList);
+
+		//printBasicBlockList(funcBlockList);
+		//printInstrList(iList);
+
+		//process all the AND/OR expressions
+		//concatenate involved basicblocks in the order of the address
+		processANDandORExps(iList, funcBlockList, funcCFGs);
+
+
+		//printBasicBlockList(funcBlockList);
+
+		/*
+		 * mark all retreat edges and backedges in given CFG and DFS-Tree
+		 * and determin if this CFG is reducible.
+		 */
+		reducible = findBackEdges(funcBlockList);
+		if(reducible)
+			printf("REDUCIBLE\n");
+		else
+			printf("NOT REDUCIBLE\n");
+
+		//printBasicBlockList(funcBlockList);
+
+		funcLoopList = buildNaturalLoopList(funcBlockList);
+		printNaturalLoopList(funcLoopList);
+
+
+		printInstrList(iList);
+		printBasicBlockList(funcBlockList);
+		printf("Building syntax tree...\n");
+		funcSyntaxTree = buildSyntaxTree(iList, funcBlockList, funcLoopList, funcCFGs, funcObjTable, parameter);
+
+		//print all function info
+		printf("\nprint all function info:\n");
+		Function *func;
+		for(i=0;i<al_size(funcCFGs);i++){
+			func = al_get(funcCFGs, i);
+			printf("func %s\t", func->funcName);
+			for(j=0;j<al_size(func->funcBody);j++){
+				printf("%d  ",((BasicBlock*)al_get(func->funcBody, j))->id);
+			}
+			printf("\n");
+		}
+
+		printf("\nTransform syntax tree...\n");
+		transformSyntaxTree(funcSyntaxTree);
+
+
+		//todo: add check points into transform syntax tree here
+
+		printf("\nRecovered Source Code:\n");
+		for(i=0;i<al_size(funcSyntaxTree);i++){
+			funcSyntaxTreeNode = al_get(funcSyntaxTree, i);
+			printSyntaxTreeNode(funcSyntaxTreeNode, parameter);
+		}
+
+		printf("create signature function\n");
+		SyntaxTreeNode *sigFunc = createSigFunction(iList, funcSyntaxTree, funcObjTable);
+		printf("\nsignature function:\n");
+		printSyntaxTreeNode(sigFunc, parameter);
+
+		destroyFunctionCFGs(funcCFGs);
+		destroyNaturalLoopList(funcLoopList);
+		destroyBasicBlockList(funcBlockList);
+
+	}
+	/* get current time(after seq finished) */
+	gettimeofday(&tv, &tz);
+	tm=localtime(&tv.tv_sec);
+	t2s=tv.tv_sec;
+	t2m=tv.tv_usec;
+
+	double ttt=(t2s-t1s)*1000000+(t2m-t1m);
+	printf("ilist:%d\t ncalls: %d\t time:%fms\n", iList->numInstrs, ncalls, ttt);
+	printf("avg/line: %f\n", ttt/iList->numInstrs);
+	printf("avg/ncall: %f\n", ttt/ncalls);
 
 	//////////////////////////////////////////////////////////////////////////////////
 	InstrListDestroy(iList, 1);
