@@ -431,6 +431,8 @@ int main (int argc, char *argv[]) {
 		printf("create signature function\n");
 		SyntaxTreeNode *sigFunc = createSigFunction(iList, funcSyntaxTree, funcObjTable);
 		printf("\nsignature function:\n");
+
+		printf("alsize %d\n", al_size(sigFunc->u.func.funcBody));
 		printSyntaxTreeNode(sigFunc, parameter);
 
 		destroyFunctionCFGs(funcCFGs);

@@ -405,8 +405,12 @@ SyntaxTreeNode *createSigFunction(InstrList *iList, ArrayList *syntaxTrees, Arra
 	printf("finishing...\n");
 	n1 = createTryCatchSigFunc();
 	for(i=0;i<al_size(syntaxTrees);i++){
+		//printf("\nadding...");
+		//printSyntaxTreeNode(al_get(syntaxTrees, i), 1);
 		al_add(n1->u.try_catch.try_body, al_get(syntaxTrees, i));
 	}
+	//printSyntaxTreeNode(n1, 1);
+
 	n2 = createReturnBool(1);
 
 
@@ -443,6 +447,10 @@ SyntaxTreeNode *createSigFunction(InstrList *iList, ArrayList *syntaxTrees, Arra
 	al_add(sigFunctionNode->u.func.funcBody, decisionVec);
 	al_add(sigFunctionNode->u.func.funcBody, n1);
 	al_add(sigFunctionNode->u.func.funcBody, n2);
+
+	//printf("------------------------------------------\n");
+	//printSyntaxTreeNode(sigFunctionNode, 1);
+	//printf("------------------------------------------\n");
 
 	return sigFunctionNode;
 }

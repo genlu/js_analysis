@@ -651,7 +651,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		printf("while( "); printExpTreeNode(node->u.loop.cond, slice_flag);printf(" ){\n");
 		//print inbody checkpoint
 		if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
-			printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.loop._bodyBranchType, exceptionStr);
+			printf("if(%s[%s++]!=%d)\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.loop._bodyBranchType, exceptionStr);
 		for(i=0;i<al_size(node->u.loop.loopBody);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.loop.loopBody, i);
 			assert(sTreeNode);
@@ -661,7 +661,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		printf("}\t//end loop\n");
 		//print out-body check point
 		if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
-			printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, 1-node->u.loop._bodyBranchType, exceptionStr);
+			printf("if(%s[%s++]!=%d)\nthrow \"%s\";\n", vectorStr, vectorIndex, 1-node->u.loop._bodyBranchType, exceptionStr);
 		break;
 
 	case TN_BLOCK:
@@ -676,6 +676,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		for(i=0;i<al_size(node->u.block.statements);i++){
 			sTreeNode = (SyntaxTreeNode *)al_get(node->u.block.statements, i);
 			assert(sTreeNode);
+			//printf("\n");
 			printSyntaxTreeNode(sTreeNode, slice_flag);
 			printf("\n");
 		}
@@ -731,7 +732,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 		if(!slice_flag || (slice_flag && TN_HAS_FLAG(node, TN_IN_SLICE))){
 			//print checkpoint
 			if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
-				printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, 1-node->u.if_else._ifeq, exceptionStr);
+				printf("if(%s[%s++]!=%d)\nthrow \"%s\";\n", vectorStr, vectorIndex, 1-node->u.if_else._ifeq, exceptionStr);
 		}
 
 		for(i=0;i<al_size(node->u.if_else.if_path);i++){
@@ -746,7 +747,7 @@ void printSyntaxTreeNode(SyntaxTreeNode *node, int slice_flag){
 			if(!slice_flag || (slice_flag && TN_HAS_FLAG(node, TN_IN_SLICE))){
 				//print checkpoint
 				if(TN_HAS_FLAG(node, TN_HAS_CHECKPOINT))
-					printf("if(%s[%s++]!=\"%d\")\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.if_else._ifeq, exceptionStr);
+					printf("if(%s[%s++]!=%d)\nthrow \"%s\";\n", vectorStr, vectorIndex, node->u.if_else._ifeq, exceptionStr);
 			}
 			for(i=0;i<al_size(node->u.if_else.else_path);i++){
 				sTreeNode = (SyntaxTreeNode *)al_get(node->u.if_else.else_path, i);
