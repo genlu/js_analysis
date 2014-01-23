@@ -1,6 +1,6 @@
 /*
  * opcode.h
- *
+ * based on the same file from SpiderMonkey
  *  Created on: May 17, 2011
  *      Author: genlu
  */
